@@ -30,7 +30,7 @@ const data = [
     image: 'https://picsum.photos/400/300?random=3',
   },
 ];
-
+//
 const Login = () => {
   const [entries] = useState(data);
   const [activeSlide, setActiveSlide] = useState(0);
