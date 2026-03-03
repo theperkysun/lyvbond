@@ -31,7 +31,7 @@ const data = [
   },
 ];
 //
-const Login = () => {
+const Login = ({ navigation }) => {
   const [entries] = useState(data);
   const [activeSlide, setActiveSlide] = useState(0);
   const [displayIndex, setDisplayIndex] = useState(0);
@@ -40,7 +40,7 @@ const Login = () => {
   const fadeAnim = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
-    // animate OUT (zoom out + fade out)
+    // animate OUT (zoom out + fade out) //
     Animated.parallel([
       Animated.timing(scaleAnim, {
         toValue: 0.8,
@@ -150,8 +150,8 @@ const Login = () => {
           borderRadius={20}
           marginTop={30}
           paddingVertical={15}
+          onPress={() => navigation.navigate('Signup')}
         />
-
         <View style={styles.signIncontainer}>
           <Text style={{ color: COLORS.grey, fontFamily: FONTS.RobotoMedium }}>
             Already have an account ?
@@ -163,6 +163,7 @@ const Login = () => {
               marginLeft: 5,
               textDecorationLine: 'underline',
             }}
+            onPress={() => navigation.navigate('MainLoginScreen')}
           >
             Sign In
           </Text>

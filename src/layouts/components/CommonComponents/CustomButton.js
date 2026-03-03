@@ -1,12 +1,12 @@
-//import liraries
 import React, { Component } from 'react';
 import { TouchableOpacity } from 'react-native';
 import { View, Text, StyleSheet } from 'react-native';
 import { COLORS, FONTS } from '../../../utlis/comon';
 // create a component
-const CustomButton = ({ title, paddingVertical, borderRadius, marginTop }) => {
+const CustomButton = ({ title, paddingVertical, borderRadius, marginTop, onPress }) => {
   return (
     <TouchableOpacity
+      onPress={onPress}
       style={{
         backgroundColor: COLORS.primary,
         paddingVertical: paddingVertical,
@@ -38,5 +38,4 @@ const styles = StyleSheet.create({
   },
 });
 
-//make this component available to the app
 export default CustomButton;

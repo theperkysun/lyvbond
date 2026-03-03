@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "629188839279",
+    "project_id": "lyvbond-19cd1",
+    "storage_bucket": "lyvbond-19cd1.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:629188839279:android:73fd87e46384883db6ca9a",
+        "android_client_info": {
+          "package_name": "com.dato"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "629188839279-k4flbptah0t1a59uaiffbj3ol5b5ditn.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.dato",
+            "certificate_hash": "299bad95438ab147eb46bb849bff318f7d4dcb45"
+          }
+        },
+        {
+          "client_id": "629188839279-usgi695e03t4me1ei0534cjgqi24cbfh.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCkldEOEev1L3v7SuQpFeZ4Ak_dmPfIqO0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "629188839279-usgi695e03t4me1ei0534cjgqi24cbfh.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

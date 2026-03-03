@@ -1,0 +1,73 @@
+Here is a detailed overview of the changes made to implement the notification system. This guide is designed to help you understand the architecture so you can easily integrate an API in the future.
+
+Architectural Overview
+Instead of keeping notification data inside the 
+NotificationScreen
+ (where the Header couldn't see it), I moved the state into a Global Context (NotificationContext).
+
+Why? This allows the Header (to show the badge count) and the Screen (to show the list) to share the exact same data source.
+Future API Benefit: You only need to fetch the API in one place (the Context), and the entire app will update automatically.
+1. New File Created: 
+src/context/NotificationContext.js
+This is the "brain" of your notification system. It holds the data and the logic.
+
+What it does:
+notifications State: Currently holds the hardcoded sample data. This is where you will fetch data from your API.
+markAsSeen
+ Function: A function that takes an 
+id
+, finds that notification, and sets seen: true.
+unseenCount: A derived value that counts how many items have seen: false. This is what the Header reads.
+For Future API Integration:
+Replace the useState initial value with an empty array [].
+Add a useEffect hook here to call your API (e.g., axios.get('/notifications')) and save the result to setNotifications.
+Update 
+markAsSeen
+ to also call an API endpoint (e.g., axios.post('/notifications/mark-seen', { id })) so the server knows the user read it.
+2. Modified File: 
+App.tsx
+What changed: I wrapped your entire application (specifically NavigationContainer) with <NotificationProvider>.
+Why: This ensures that every screen and component in your app (Header, Home, Notification Screen) has access to the notification data.
+3. Modified File: 
+src/layouts/components/CommonComponents/HeaderHome.js
+What changed:
+Removed Props: It no longer waits for a parent component to pass down notificationCount or onNotifyPress.
+Added 
+useNotification
+ Hook: It now directly asks the Context: "How many unseen notifications are there?" (const { unseenCount } = useNotification()).
+Added useNavigation Hook: It now handles its own navigation. When you click the bell icon, it runs navigation.navigate('NotificationScreen').
+Future Note: You rarely need to touch this file. As long as the Context has the correct count, this Header will update automatically.
+4. Modified File: 
+src/layouts/screens/Notification/NotificationScreen.js
+What changed:
+Removed Local State: I deleted the useState that held the hardcoded data inside this screen.
+Connected to Context: It now gets notifications and 
+markAsSeen
+ directly from the Context.
+Interaction: When a user clicks a notification card, it calls 
+markAsSeen(item.id)
+ from the Context. This updates the global state, which immediately removes the "New" highlight on the card AND decreases the badge count in the Header.
+Summary for Future API Integration
+When you are ready to connect the backend, go to 
+src/context/NotificationContext.js
+.
+
+Fetch Data:
+javascript
+// Inside NotificationProvider
+useEffect(() => {
+   // API Call Here
+   // const data = await api.getNotifications();
+   // setNotifications(data);
+}, []);
+Update Status:
+javascript
+const markAsSeen = async (id) => {
+    // 1. Optimistically update UI (what we have now)
+    setNotifications(prev => ... );
+
+    // 2. Send to Backend
+    // await api.markRead(id);
+};
+This structure ensures your UI is always in sync without passing messy props between screens.
+

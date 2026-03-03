@@ -1,286 +1,243 @@
-import { BlurView } from '@react-native-community/blur';
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useState } from "react";
 import {
   View,
   Text,
-  StyleSheet,
-  Image,
   TouchableOpacity,
-  Animated,
-} from 'react-native';
-import Swiper from 'react-native-deck-swiper';
-import Icon from 'react-native-vector-icons/MaterialIcons';
-import { FONTS } from '../../../utlis/comon';
-import Header from '../../components/Header';
-import ProfileCard from '../../components/HomScreenComponents/ProfileCard';
-const DATA = [
-  {
-    name: 'Shizuka',
-    place: 'Kolkata',
-    url: require('../../../assets/images/photomain5.jpeg'),
-  },
-  {
-    name: 'Shizuka',
-    place: 'Kolkata',
-    url: require('../../../assets/images/photomain4.jpeg'),
-  },
-  {
-    name: 'Shizuka',
-    place: 'Kolkata',
-    url: require('../../../assets/images/photomain3.jpeg'),
-  },
-  {
-    name: 'Shizuka',
-    place: 'Kolkata',
-    url: require('../../../assets/images/photomain.png'),
-  },
-  {
-    name: ' Jessica Parker, 23',
-    place: 'Kolkata',
-    url: require('../../../assets/images/photoMain2.jpeg'),
-  },
-];
-const HomeScreen = () => {
-  const shakeAnim = useRef(new Animated.Value(0)).current;
-  const [hearts, setHearts] = useState([]);
-  const [cardIndex, setCardIndex] = useState(false);
-  const swiperRef = useRef(null);
-  // Star shake loop
-  useEffect(() => {
-    const loop = () => {
-      Animated.sequence([
-        Animated.timing(shakeAnim, {
-          toValue: 10,
-          duration: 100,
-          useNativeDriver: true,
-        }),
-        Animated.timing(shakeAnim, {
-          toValue: -10,
-          duration: 100,
-          useNativeDriver: true,
-        }),
-        Animated.timing(shakeAnim, {
-          toValue: 6,
-          duration: 100,
-          useNativeDriver: true,
-        }),
-        Animated.timing(shakeAnim, {
-          toValue: -6,
-          duration: 100,
-          useNativeDriver: true,
-        }),
-        Animated.timing(shakeAnim, {
-          toValue: 0,
-          duration: 100,
-          useNativeDriver: true,
-        }),
-      ]).start(() => {
-        setTimeout(loop, 2000);
-      });
-    };
+  StyleSheet,
+  StatusBar,
+  Platform,
+  ScrollView,
+  SafeAreaView,
+} from "react-native";
 
-    loop();
-  }, [shakeAnim]);
-  console.log('cardIndex', cardIndex);
+import HeaderHome from "../../components/CommonComponents/HeaderHome";
 
-  // Animate heart flying up
-  const handleHeartPress = () => {
-    const id = Date.now();
-    const translateY = new Animated.Value(0);
-    const opacity = new Animated.Value(1);
-    const scale = new Animated.Value(1);
+// BODY FILES
+import DailyBody from "./DailyBody";
+import MyMatchesBody from "./MyMatchesBody";
+import NearMeBody from "./NearMeBody";
+import Ourrecomendation from "./Ourrecomendation";
+import { COLORS, FONTS } from "../../../utlis/comon";
 
-    setHearts(prev => [...prev, { id, translateY, opacity, scale }]);
+// USER DATA
+import {
+  getNewMatchesData,
+  getPremiumMatchesData,
+  getRecentVisitorsData
+} from "../../components/CommonComponents/userData/userData";
 
-    Animated.parallel([
-      Animated.timing(translateY, {
-        toValue: -400,
-        duration: 1500,
-        useNativeDriver: true,
-      }),
-      Animated.timing(opacity, {
-        toValue: 0,
-        duration: 1500,
-        useNativeDriver: true,
-      }),
-      Animated.timing(scale, {
-        toValue: 2,
-        duration: 1500,
-        useNativeDriver: true,
-      }),
-    ]).start(() => {
-      // remove after animation
-      setHearts(prev => prev.filter(h => h.id !== id));
-    });
+import { useFocusEffect } from '@react-navigation/native';
+
+import MatchService from "../../../services/MatchService"; // Import Service
+
+export default function HomeScreen({ navigation, route }) {
+  const [selectedTab, setSelectedTab] = useState("daily");
+  const [dailyCount, setDailyCount] = useState(0);
+  const [nearCount, setNearCount] = useState(0); // Dynamic Near Me Count
+  const [matchesCount, setMatchesCount] = useState(0);
+
+  // Handle incoming tab navigation request
+  React.useEffect(() => {
+    if (route.params?.tab) {
+      setSelectedTab(route.params.tab);
+    }
+  }, [route.params?.tab]);
+
+  // Fetch Counts
+  const fetchCounts = async () => {
+    try {
+      // Daily Matches
+      const dailyData = await MatchService.getDailyMatches();
+      if (dailyData && dailyData.count !== undefined) {
+        setDailyCount(dailyData.count);
+        setMatchesCount(dailyData.count); // Since MyMatchesBody uses the same data source currently
+      }
+
+      // Near Me Matches (Default 5km)
+      const nearData = await MatchService.getNearMeMatches(5);
+      if (nearData && nearData.success && Array.isArray(nearData.data)) {
+        setNearCount(nearData.data.length);
+      }
+    } catch (error) {
+      console.log("Error fetching counts:", error);
+    }
   };
-  const scaleAnim = useRef(new Animated.Value(1)).current;
 
-  useEffect(() => {
-    // Create a continuous pulsing animation
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(scaleAnim, {
-          toValue: 1.3, // scale up
-          duration: 500,
-          useNativeDriver: true,
-        }),
-        Animated.timing(scaleAnim, {
-          toValue: 1, // scale back to original
-          duration: 500,
-          useNativeDriver: true,
-        }),
-      ]),
-    ).start();
-  }, [scaleAnim]);
+  useFocusEffect(
+    React.useCallback(() => {
+      fetchCounts();
+    }, [])
+  );
+
+
+  const COUNTS = {
+    daily: dailyCount,
+    matches: matchesCount,
+    near: nearCount, // Use State
+  };
+
+  // Render body for each tab
+  const renderBody = () => {
+    switch (selectedTab) {
+      case "daily": return <DailyBody />;
+      case "matches": return <MyMatchesBody />;
+      case "recomendation": return <Ourrecomendation />;
+      case "near": return <NearMeBody />;
+      default: return null;
+    }
+  };
+
   return (
-    <>
-      <View style={{ flex: 1 }}>
-        <Header
-          title={'Discover'}
-          subTitle={'Chicago, II'}
-          icon={'tune'}
-          // rightButton={'Spin'}
-        />
+    <View style={styles.mainContainer}>
 
-        {/* Swiper */}
-        <View>
-          <View style={styles.container}>
-            <Swiper
-              containerStyle={{ marginTop: 0 }}
-              cards={DATA}
-              stackSize={2} // show current + next card
-              stackSeparation={-30} // vertical offset between cards
-              stackScale={0.95} // scale the next card
-              renderCard={card => {
-                return <ProfileCard card={card} />;
-              }}
-              infinite={false}
-              previousCardDefaultPositionY={2}
-              onSwipedAll={() => {
-                console.log('onSwipedAll');
-              }}
-              cardIndex={0}
-              backgroundColor={'#fff'}
-              onSwiped={cardIndex => {
-                console.log('cardIndex', cardIndex);
-                console.log(' DATA.length', DATA.length - 2);
-                if (cardIndex == DATA.length - 2) {
-                  console.log('llllll');
-                  setCardIndex(true);
-                }
+      {/* HEADER HEIGHT FIX REMOVED */},
 
-                if (cardIndex === DATA.length - 1) {
-                  // Wait a tick to ensure ref is ready
-                  setTimeout(() => {
-                    if (swiperRef.current) {
-                      swiperRef.current.jumpToCardIndex(DATA.length - 2);
-                    }
-                  }, 0);
-                }
-              }}
-              onSwiping={(x, y) => {
-                if (swiperRef.current) {
-                  const currentIndex = swiperRef.current.state.cardIndex;
-                  if (currentIndex === DATA.length - 1) {
-                    swiperRef.current.jumpToCardIndex(DATA.length - 1); // lock last card
-                  }
-                }
-              }}
-              disableTopSwipe={cardIndex}
-              disableBottomSwipe={cardIndex}
-              disableLeftSwipe={cardIndex}
-              disableRightSwipe={cardIndex}
-            />
-          </View>
-        </View>
-      </View>
+      <HeaderHome title="Matches" />
 
-      {/* Floating hearts */}
-      {hearts.map(h => (
-        <Animated.View
-          key={h.id}
-          style={{
-            position: 'absolute',
-            bottom: 120,
-            alignSelf: 'center',
-            zIndex: 999,
-            transform: [{ translateY: h.translateY }, { scale: h.scale }],
-            opacity: h.opacity,
-          }}
+      {/* -------- TOP TABS -------- */}
+      <View style={styles.tabContainer}>
+
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.tabScroll}
         >
-          <Icon name="favorite" size={40} color="#E94057" />
-        </Animated.View>
-      ))}
 
-      {/* Bottom Buttons */}
-      <View style={styles.bottomWrapper}>
-        <View style={styles.bottomRow}>
-          <TouchableOpacity style={styles.smallButton}>
-            <Icon name="close" size={40} color={'#F27121'} />
+          {/* Search → NAVIGATE TO SEARCH SCREEN */}
+          <TouchableOpacity
+            style={[styles.tabBtn, styles.tabInactive]}
+            onPress={() => navigation.navigate("SearchScreen")}
+          >
+            <Text style={styles.icon}>🔍</Text>
+            <Text style={styles.tabText}>Search</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity onPress={handleHeartPress} style={styles.bigButton}>
-            <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
-              <Icon name="favorite" size={60} color={'#fff'} />
-            </Animated.View>
-          </TouchableOpacity>
+          {/* Daily */}
+          <TabButton
+            label="Daily"
+            count={COUNTS.daily}
+            active={selectedTab === "daily"}
+            onPress={() => setSelectedTab("daily")}
+          />
 
-          {/* Shaking star button */}
-          <Animated.View style={{ transform: [{ translateX: shakeAnim }] }}>
-            <TouchableOpacity
-              onPress={() => console.log('hiii')}
-              style={styles.smallButton}
-            >
-              <Icon name="star" size={30} color={'#8A2387'} />
-            </TouchableOpacity>
-          </Animated.View>
-        </View>
+          {/* Daily */}
+          <TabButton
+            label="Our Recomendation"
+            count={COUNTS.daily}
+            active={selectedTab === "recomendation"}
+            onPress={() => setSelectedTab("recomendation")}
+          />
+
+          {/* My Matches */}
+          <TabButton
+            label="My Matches"
+            count={COUNTS.matches}
+            active={selectedTab === "matches"}
+            onPress={() => setSelectedTab("matches")}
+          />
+
+          {/* Near Me */}
+          <TabButton
+            label="Near Me"
+            count={COUNTS.near}
+            active={selectedTab === "near"}
+            onPress={() => setSelectedTab("near")}
+          />
+
+        </ScrollView>
       </View>
-    </>
+
+      {/* BODY AREA */}
+      <View style={{ flex: 1 }}>
+        {renderBody()}
+      </View>
+
+    </View>
+  );
+}
+
+
+// ------------------ TAB BUTTON ------------------
+
+const TabButton = ({ label, count, active, onPress }) => {
+  return (
+    <TouchableOpacity
+      onPress={onPress}
+      style={[styles.tabBtn, active ? styles.tabActive : styles.tabInactive]}
+    >
+      <Text style={[styles.tabText, active && styles.tabTextActive]}>
+        {label}
+      </Text>
+
+      {count !== undefined && (
+        <Text style={[styles.count, active && styles.tabTextActive]}>
+          {" "}({count})
+        </Text>
+      )}
+    </TouchableOpacity>
   );
 };
 
+
+// ------------------ STYLES ------------------
+
 const styles = StyleSheet.create({
-  container: {
-    backgroundColor: 'red',
-    marginTop: -10,
-  },
-  card: {
-    borderRadius: 100,
+  mainContainer: {
+    flex: 1,
+    backgroundColor: COLORS.white,
   },
 
-  bottomWrapper: {
-    position: 'absolute',
-    bottom: 30,
-    zIndex: 999,
-    width: '100%',
+  tabContainer: {
+    height: 55,
+    justifyContent: "center",
+    paddingLeft: 10,
   },
-  bottomRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingHorizontal: 40,
-    alignItems: 'center',
+
+  tabScroll: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingRight: 14,
+    gap: 10,
   },
-  smallButton: {
-    backgroundColor: '#fff',
-    height: 67,
-    width: 67,
-    borderRadius: 300,
-    alignItems: 'center',
-    justifyContent: 'center',
-    elevation: 5,
-    shadowColor: '#f56c7c',
+
+  tabBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 14,
+    height: 34,
+    borderRadius: 18,
+    borderWidth: 1,
   },
-  bigButton: {
-    backgroundColor: '#E94057',
-    height: 90,
-    width: 90,
-    borderRadius: 300,
-    alignItems: 'center',
-    justifyContent: 'center',
-    elevation: 8,
-    shadowColor: '#f56c7c',
+
+  tabInactive: {
+    backgroundColor: COLORS.white,
+    borderColor: "#d0d0d0",
+  },
+
+  tabActive: {
+    backgroundColor: "#000",
+    borderColor: "#000",
+  },
+
+  tabText: {
+    fontSize: 13,
+    color: "#444",
+    fontWeight: "600",
+  },
+
+  tabTextActive: {
+    color: COLORS.white,
+  },
+
+  icon: {
+    fontSize: 15,
+    marginRight: 4,
+  },
+
+  count: {
+    fontSize: 13,
+    color: "#555",
+    fontWeight: "600",
   },
 });
 
-export default HomeScreen;

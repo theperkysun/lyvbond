@@ -4,11 +4,11 @@ import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { FONTS } from '../../utlis/comon';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 // create a component
-const Header = ({ title, subTitle, icon, rightButton }) => {
+const Header = ({ title, subTitle, icon, rightButton, onBack }) => {
   return (
     <View style={styles.topBar}>
       <TouchableOpacity
-        onPress={() => console.log('jjjj')}
+        onPress={onBack ? onBack : () => console.log('Back button pressed')}
         style={styles.iconButton}
       >
         <Icon name="arrow-back-ios" size={25} color="#E94057" />
