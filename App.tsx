@@ -98,7 +98,16 @@ function App() {
       ) : (
         <AuthProvider>
           <NotificationProvider>
-            <NavigationContainer>
+            <NavigationContainer
+              linking={{
+                prefixes: ['lyvbond://', 'https://lyvbond.com', 'http://lyvbond.com'],
+                config: {
+                  screens: {
+                    FamilyInviteIntermediate: 'family-chat/:chatId/:isInvite',
+                  },
+                },
+              }}
+            >
               <AppNavigation />
               <IncomingCallModal />
               <NotificationController />

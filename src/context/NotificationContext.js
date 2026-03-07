@@ -74,6 +74,22 @@ export const NotificationProvider = ({ children }) => {
                         titleParts = [
                             { text: "New matches found near you!", bold: true }
                         ];
+                    } else if (item.type === 'MEET_REQUEST') {
+                        titleParts = [
+                            { text: item.title, bold: true }
+                        ];
+                    } else if (item.type === 'MEET_RESPONSE') {
+                        titleParts = [
+                            { text: item.title, bold: true }
+                        ];
+                    } else if (item.type === 'CALL_INCOMING') {
+                        titleParts = [
+                            { text: item.title, bold: true }
+                        ];
+                    } else if (item.type === 'GHOSTING_ALERT') {
+                        titleParts = [
+                            { text: "Ghosting Alert 👻", bold: true }
+                        ];
                     } else {
                         titleParts = [{ text: item.title, bold: true }];
                     }

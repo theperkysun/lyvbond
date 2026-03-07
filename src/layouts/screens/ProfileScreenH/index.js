@@ -1,17 +1,20 @@
 import React from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
-import HeaderHome from '../../components/CommonComponents/HeaderHome'
+import HeaderHome from '../../components/CommonComponents/HeaderHome';
 import ProfileTopSection from './ProfileTopSection';
 import VipCard from './VipCard';
-import LiveMeetingCard from './LiveMeetingCard';
 import CompleteProfileSection from './CompleteProfileSection';
 import PremiumMatchesSection from './PremiumMatchesSection';
 import NewMatchesSection from './NewMatchesSection';
 import RecentVisitorsSection from './RecentVisitorsSection';
 import FooterSection from './FooterSection';
+import { useAuth } from '../../../context/AuthContext';
 
 
 export default function ProfileScreenH() {
+  const { userInfo } = useAuth();
+  const isInvited = userInfo?.isInvitedUser === true;
+
   return (
     <View style={styles.container}>
       <HeaderHome />
@@ -21,9 +24,9 @@ export default function ProfileScreenH() {
         <VipCard />
         {/* <LiveMeetingCard />
         <CompleteProfileSection /> */}
-        <PremiumMatchesSection />
-        <NewMatchesSection />
-        <RecentVisitorsSection />
+        {!isInvited && <PremiumMatchesSection />}
+        {!isInvited && <NewMatchesSection />}
+        {!isInvited && <RecentVisitorsSection />}
         <FooterSection />
       </ScrollView>
     </View>

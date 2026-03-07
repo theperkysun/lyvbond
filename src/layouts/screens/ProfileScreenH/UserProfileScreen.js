@@ -35,9 +35,11 @@ const HOBBY_ICONS = {
 };
 
 export default function UserProfileScreen({ navigation, route }) {
-    const { userToken, setUserInfo } = useAuth();
+    const { userToken, setUserInfo, userInfo } = useAuth();
     const [loading, setLoading] = useState(true);
     const [profile, setProfile] = useState(userProfileData);
+
+    const isInvited = userInfo?.isInvitedUser === true;
 
     useFocusEffect(
         useCallback(() => {
@@ -130,7 +132,9 @@ export default function UserProfileScreen({ navigation, route }) {
                 anyDisability: user.basicInfo?.anyDisability || "",
                 healthInfo: user.basicInfo?.healthInfo || "",
                 email: user.email || "",
-                mobile: user.phoneNumber || ""
+                mobile: user.phoneNumber || "",
+                invitedByName: user.invitedBy ? (user.invitedBy.name || `${user.invitedBy.firstName || ''} ${user.invitedBy.lastName || ''}`.trim()) : "",
+                familyRelation: user.familyRelation || "Family Member"
             },
 
             aboutMyself: user.about || "",
@@ -251,16 +255,18 @@ export default function UserProfileScreen({ navigation, route }) {
                 </View>
                 <Text style={styles.cardTitle}>{title}</Text>
             </View>
-            <TouchableOpacity onPress={onEditPress} style={styles.editBtn}>
-                <LinearGradient
-                    colors={[COLORS.primary, '#FF8E53']}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 0 }}
-                    style={styles.editGradient}
-                >
-                    <FontAwesome6 name="pencil" size={14} color="#fff" />
-                </LinearGradient>
-            </TouchableOpacity>
+            {onEditPress && (
+                <TouchableOpacity onPress={onEditPress} style={styles.editBtn}>
+                    <LinearGradient
+                        colors={[COLORS.primary, '#FF8E53']}
+                        start={{ x: 0, y: 0 }}
+                        end={{ x: 1, y: 0 }}
+                        style={styles.editGradient}
+                    >
+                        <FontAwesome6 name="pencil" size={14} color="#fff" />
+                    </LinearGradient>
+                </TouchableOpacity>
+            )}
         </View>
     );
 
@@ -350,10 +356,12 @@ export default function UserProfileScreen({ navigation, route }) {
                             </View>
                             <Text style={styles.idText}>ID: {profile.useid}</Text>
 
-                            <View style={styles.membershipBadge}>
-                                <MaterialCommunityIcons name="crown" size={14} color="#FFD700" />
-                                <Text style={styles.membershipText}>{profile.acctype || "Free Plan"}</Text>
-                            </View>
+                            {!isInvited && (
+                                <View style={styles.membershipBadge}>
+                                    <MaterialCommunityIcons name="crown" size={14} color="#FFD700" />
+                                    <Text style={styles.membershipText}>{profile.acctype || "Free Plan"}</Text>
+                                </View>
+                            )}
                         </View>
 
                         {/* Edit Float Button */}
@@ -368,200 +376,212 @@ export default function UserProfileScreen({ navigation, route }) {
                     <SectionHeader
                         title="Basic Info"
                         icon="account-circle"
-                        onEditPress={() => goToEdit('basicInfo')}
+                        onEditPress={!isInvited ? () => goToEdit('basicInfo') : undefined}
                     />
 
-                    <Row label="Posted By" value={profile.basicInfo.postedBy} onFillPress={() => goToFill('basicInfo')} />
-                    <Row label="Gender" value={profile.basicInfo.gender} onFillPress={() => goToFill('basicInfo')} />
-                    <Row label="Age" value={profile.basicInfo.age} onFillPress={() => goToFill('basicInfo')} />
-                    <Row label="Marital Status" value={profile.basicInfo.maritalStatus} onFillPress={() => goToFill('basicInfo')} />
-                    <Row label="Height" value={profile.basicInfo.height} onFillPress={() => goToFill('basicInfo')} />
-                    <Row label="Any Disability?" value={profile.basicInfo.anyDisability} onFillPress={() => goToFill('basicInfo')} />
-                    <Row label="Health Info" value={profile.basicInfo.healthInfo} onFillPress={() => goToFill('basicInfo')} />
+                    {!isInvited && <Row label="Posted By" value={profile.basicInfo.postedBy} onFillPress={() => goToFill('basicInfo')} />}
+                    <Row label="Gender" value={profile.basicInfo.gender} onFillPress={!isInvited ? () => goToFill('basicInfo') : undefined} />
+                    <Row label="Age" value={profile.basicInfo.age} onFillPress={!isInvited ? () => goToFill('basicInfo') : undefined} />
+                    {!isInvited && <Row label="Marital Status" value={profile.basicInfo.maritalStatus} onFillPress={() => goToFill('basicInfo')} />}
+                    {!isInvited && <Row label="Height" value={profile.basicInfo.height} onFillPress={() => goToFill('basicInfo')} />}
+                    {!isInvited && <Row label="Any Disability?" value={profile.basicInfo.anyDisability} onFillPress={() => goToFill('basicInfo')} />}
+                    {!isInvited && <Row label="Health Info" value={profile.basicInfo.healthInfo} onFillPress={() => goToFill('basicInfo')} />}
                     <Row label="Email" value={profile.basicInfo.email} />
                     <Row label="Mobile" value={profile.basicInfo.mobile} />
+
+                    {isInvited && profile.basicInfo.invitedByName !== "" && (
+                        <Row label="Referred By" value={profile.basicInfo.invitedByName} />
+                    )}
+                    {isInvited && (
+                        <Row label="Relationship" value={profile.basicInfo.familyRelation} />
+                    )}
                 </View>
 
-                {/* SECTION 2 – ABOUT MYSELF */}
-                <View style={styles.card}>
-                    <SectionHeader
-                        title="About Myself"
-                        icon="text-box-outline"
-                        onEditPress={() => goToEdit('aboutMyself')}
-                    />
-                    <Text style={styles.description}>
-                        {profile.aboutMyself || "Tell us something about yourself..."}
-                    </Text>
-                </View>
+                {!isInvited && (
+                    <>
 
-                {/* SECTION 3 – RELIGIOUS BACKGROUND */}
-                <View style={styles.card}>
-                    <SectionHeader
-                        title="Religious Background"
-                        icon="hands-pray"
-                        onEditPress={() => goToEdit('religiousInfo')}
-                    />
+                        {/* SECTION 2 – ABOUT MYSELF */}
+                        <View style={styles.card}>
+                            <SectionHeader
+                                title="About Myself"
+                                icon="text-box-outline"
+                                onEditPress={() => goToEdit('aboutMyself')}
+                            />
+                            <Text style={styles.description}>
+                                {profile.aboutMyself || "Tell us something about yourself..."}
+                            </Text>
+                        </View>
 
-                    <Row label="Religion" value={profile.religiousInfo.religion} onFillPress={() => goToFill('religiousInfo')} />
-                    <Row label="Mother Tongue" value={profile.religiousInfo.motherTongue} onFillPress={() => goToFill('religiousInfo')} />
-                    <Row label="Community" value={profile.religiousInfo.community} onFillPress={() => goToFill('religiousInfo')} />
-                    <Row label="Sub Community" value={profile.religiousInfo.subCommunity} onFillPress={() => goToFill('religiousInfo')} />
-                    <Row label="Caste No Bar" value={profile.religiousInfo.casteNoBar} onFillPress={() => goToFill('religiousInfo')} />
-                    <Row label="Gothra" value={profile.religiousInfo.gothra} onFillPress={() => goToFill('religiousInfo')} />
-                </View>
+                        {/* SECTION 3 – RELIGIOUS BACKGROUND */}
+                        <View style={styles.card}>
+                            <SectionHeader
+                                title="Religious Background"
+                                icon="hands-pray"
+                                onEditPress={() => goToEdit('religiousInfo')}
+                            />
 
-                {/* SECTION 4 – FAMILY */}
-                <View style={styles.card}>
-                    <SectionHeader
-                        title="Family Details"
-                        icon="home-heart"
-                        onEditPress={() => goToEdit('family')}
-                    />
+                            <Row label="Religion" value={profile.religiousInfo.religion} onFillPress={() => goToFill('religiousInfo')} />
+                            <Row label="Mother Tongue" value={profile.religiousInfo.motherTongue} onFillPress={() => goToFill('religiousInfo')} />
+                            <Row label="Community" value={profile.religiousInfo.community} onFillPress={() => goToFill('religiousInfo')} />
+                            <Row label="Sub Community" value={profile.religiousInfo.subCommunity} onFillPress={() => goToFill('religiousInfo')} />
+                            <Row label="Caste No Bar" value={profile.religiousInfo.casteNoBar} onFillPress={() => goToFill('religiousInfo')} />
+                            <Row label="Gothra" value={profile.religiousInfo.gothra} onFillPress={() => goToFill('religiousInfo')} />
+                        </View>
 
-                    <Row label="Mother Details" value={profile.family.motherDetails} onFillPress={() => goToFill('family')} />
-                    <Row label="Father Details" value={profile.family.fatherDetails} onFillPress={() => goToFill('family')} />
-                    <Row label="No. of Sisters" value={profile.family.sisters} onFillPress={() => goToFill('family')} />
-                    <Row label="No. of Brothers" value={profile.family.brothers} onFillPress={() => goToFill('family')} />
-                    <Row label="Financial Status" value={profile.family.financialStatus} onFillPress={() => goToFill('family')} />
-                </View>
+                        {/* SECTION 4 – FAMILY */}
+                        <View style={styles.card}>
+                            <SectionHeader
+                                title="Family Details"
+                                icon="home-heart"
+                                onEditPress={() => goToEdit('family')}
+                            />
 
-                {/* SECTION 5 – ASTRO DETAILS */}
-                <View style={styles.card}>
-                    <SectionHeader
-                        title="Astro Details"
-                        icon="zodiac-leo"
-                        onEditPress={() => goToEdit('astro')}
-                    />
+                            <Row label="Mother Details" value={profile.family.motherDetails} onFillPress={() => goToFill('family')} />
+                            <Row label="Father Details" value={profile.family.fatherDetails} onFillPress={() => goToFill('family')} />
+                            <Row label="No. of Sisters" value={profile.family.sisters} onFillPress={() => goToFill('family')} />
+                            <Row label="No. of Brothers" value={profile.family.brothers} onFillPress={() => goToFill('family')} />
+                            <Row label="Financial Status" value={profile.family.financialStatus} onFillPress={() => goToFill('family')} />
+                        </View>
 
-                    <Row label="Manglik" value={profile.astro.manglik} onFillPress={() => goToEdit('astro')} />
-                    <Row label="Date of Birth" value={profile.astro.dateOfBirth} onFillPress={() => goToEdit('astro')} />
-                    <Row label="Time of Birth" value={profile.astro.timeOfBirth} onFillPress={() => goToEdit('astro')} />
-                    <Row label="City of Birth" value={profile.astro.cityOfBirth} onFillPress={() => goToEdit('astro')} />
-                    <Row label="Raashi" value={profile.astro.raashi} onFillPress={() => goToEdit('astro')} />
-                    <Row label="Nakshatra" value={profile.astro.nakshatra} onFillPress={() => goToEdit('astro')} />
-                </View>
+                        {/* SECTION 5 – ASTRO DETAILS */}
+                        <View style={styles.card}>
+                            <SectionHeader
+                                title="Astro Details"
+                                icon="zodiac-leo"
+                                onEditPress={() => goToEdit('astro')}
+                            />
 
-                {/* SECTION 6 – LOCATION & CAREER */}
-                <View style={styles.card}>
-                    <SectionHeader
-                        title="Location & Career"
-                        icon="briefcase-account"
-                        onEditPress={() => goToEdit('locationEducationCareer')}
-                    />
+                            <Row label="Manglik" value={profile.astro.manglik} onFillPress={() => goToEdit('astro')} />
+                            <Row label="Date of Birth" value={profile.astro.dateOfBirth} onFillPress={() => goToEdit('astro')} />
+                            <Row label="Time of Birth" value={profile.astro.timeOfBirth} onFillPress={() => goToEdit('astro')} />
+                            <Row label="City of Birth" value={profile.astro.cityOfBirth} onFillPress={() => goToEdit('astro')} />
+                            <Row label="Raashi" value={profile.astro.raashi} onFillPress={() => goToEdit('astro')} />
+                            <Row label="Nakshatra" value={profile.astro.nakshatra} onFillPress={() => goToEdit('astro')} />
+                        </View>
 
-                    <Row label="Country" value={profile.locationEducationCareer.country} onFillPress={() => goToFill('locationEducationCareer')} />
-                    <Row label="State" value={profile.locationEducationCareer.state} onFillPress={() => goToFill('locationEducationCareer')} />
-                    <Row label="City" value={profile.locationEducationCareer.city} onFillPress={() => goToFill('locationEducationCareer')} />
-                    <Row label="Residency" value={profile.locationEducationCareer.residencyStatus} onFillPress={() => goToFill('locationEducationCareer')} />
-                    <Row label="Pin Code" value={profile.locationEducationCareer.pinCode} onFillPress={() => goToFill('locationEducationCareer')} />
-                    <Row label="Grew Up In" value={profile.locationEducationCareer.grewUpIn} onFillPress={() => goToFill('locationEducationCareer')} />
-                    <Row label="Highest Degree" value={profile.locationEducationCareer.highestQualification} onFillPress={() => goToFill('locationEducationCareer')} />
-                    <Row label="College" value={profile.locationEducationCareer.college} onFillPress={() => goToFill('locationEducationCareer')} />
-                    <Row label="Working With" value={profile.locationEducationCareer.workingWith} onFillPress={() => goToFill('locationEducationCareer')} />
-                    <Row label="Profession" value={profile.locationEducationCareer.workingAs} onFillPress={() => goToFill('locationEducationCareer')} />
-                    <Row label="Annual Income" value={profile.locationEducationCareer.annualIncome} onFillPress={() => goToFill('locationEducationCareer')} />
-                    <Row label="Employer" value={profile.locationEducationCareer.employerName} onFillPress={() => goToFill('locationEducationCareer')} />
-                </View>
+                        {/* SECTION 6 – LOCATION & CAREER */}
+                        <View style={styles.card}>
+                            <SectionHeader
+                                title="Location & Career"
+                                icon="briefcase-account"
+                                onEditPress={() => goToEdit('locationEducationCareer')}
+                            />
 
-                {/* SECTION 7 – LIFESTYLE */}
-                <View style={styles.card}>
-                    <SectionHeader
-                        title="Lifestyle"
-                        icon="glass-wine"
-                        onEditPress={() => goToEdit('lifestyle')}
-                    />
-                    <Row label="Diet" value={profile.lifestyle.diet} onFillPress={() => goToFill('lifestyle')} />
-                </View>
+                            <Row label="Country" value={profile.locationEducationCareer.country} onFillPress={() => goToFill('locationEducationCareer')} />
+                            <Row label="State" value={profile.locationEducationCareer.state} onFillPress={() => goToFill('locationEducationCareer')} />
+                            <Row label="City" value={profile.locationEducationCareer.city} onFillPress={() => goToFill('locationEducationCareer')} />
+                            <Row label="Residency" value={profile.locationEducationCareer.residencyStatus} onFillPress={() => goToFill('locationEducationCareer')} />
+                            <Row label="Pin Code" value={profile.locationEducationCareer.pinCode} onFillPress={() => goToFill('locationEducationCareer')} />
+                            <Row label="Grew Up In" value={profile.locationEducationCareer.grewUpIn} onFillPress={() => goToFill('locationEducationCareer')} />
+                            <Row label="Highest Degree" value={profile.locationEducationCareer.highestQualification} onFillPress={() => goToFill('locationEducationCareer')} />
+                            <Row label="College" value={profile.locationEducationCareer.college} onFillPress={() => goToFill('locationEducationCareer')} />
+                            <Row label="Working With" value={profile.locationEducationCareer.workingWith} onFillPress={() => goToFill('locationEducationCareer')} />
+                            <Row label="Profession" value={profile.locationEducationCareer.workingAs} onFillPress={() => goToFill('locationEducationCareer')} />
+                            <Row label="Annual Income" value={profile.locationEducationCareer.annualIncome} onFillPress={() => goToFill('locationEducationCareer')} />
+                            <Row label="Employer" value={profile.locationEducationCareer.employerName} onFillPress={() => goToFill('locationEducationCareer')} />
+                        </View>
 
-                {/* SECTION 8 – HOBBIES */}
-                <View style={styles.card}>
-                    <SectionHeader
-                        title="Hobbies"
-                        icon="palette"
-                        onEditPress={() => goToEdit('hobbies')}
-                    />
+                        {/* SECTION 7 – LIFESTYLE */}
+                        <View style={styles.card}>
+                            <SectionHeader
+                                title="Lifestyle"
+                                icon="glass-wine"
+                                onEditPress={() => goToEdit('lifestyle')}
+                            />
+                            <Row label="Diet" value={profile.lifestyle.diet} onFillPress={() => goToFill('lifestyle')} />
+                        </View>
 
-                    <View style={styles.hobbyContainer}>
-                        {profile.hobbies.map((item, i) => (
-                            <LinearGradient
-                                key={i}
-                                colors={['#fff', '#f9f9f9']}
-                                style={styles.hobbyPill}
-                            >
-                                <MaterialCommunityIcons
-                                    name={item.icon}
-                                    size={16}
-                                    color={COLORS.primary}
-                                    style={{ marginRight: 6 }}
-                                />
-                                <Text style={styles.hobbyLabel}>{item.name}</Text>
-                            </LinearGradient>
-                        ))}
-                        {profile.hobbies.length === 0 && (
-                            <Text style={styles.noDataText}>No hobbies added yet.</Text>
-                        )}
-                    </View>
-                </View>
+                        {/* SECTION 8 – HOBBIES */}
+                        <View style={styles.card}>
+                            <SectionHeader
+                                title="Hobbies"
+                                icon="palette"
+                                onEditPress={() => goToEdit('hobbies')}
+                            />
 
-                {/* 🔹 PARTNER PREFERENCES SECTION HEADER */}
-                <Text style={styles.bigSectionHeader}>Partner Preferences</Text>
+                            <View style={styles.hobbyContainer}>
+                                {profile.hobbies.map((item, i) => (
+                                    <LinearGradient
+                                        key={i}
+                                        colors={['#fff', '#f9f9f9']}
+                                        style={styles.hobbyPill}
+                                    >
+                                        <MaterialCommunityIcons
+                                            name={item.icon}
+                                            size={16}
+                                            color={COLORS.primary}
+                                            style={{ marginRight: 6 }}
+                                        />
+                                        <Text style={styles.hobbyLabel}>{item.name}</Text>
+                                    </LinearGradient>
+                                ))}
+                                {profile.hobbies.length === 0 && (
+                                    <Text style={styles.noDataText}>No hobbies added yet.</Text>
+                                )}
+                            </View>
+                        </View>
 
-                {/* SECTION 9 – Partner Basic Info */}
-                <View style={styles.card}>
-                    <SectionHeader
-                        title="Partner Basics"
-                        icon="account-heart"
-                        onEditPress={() => goToEdit('partnerBasicInfo')}
-                    />
+                        {/* 🔹 PARTNER PREFERENCES SECTION HEADER */}
+                        <Text style={styles.bigSectionHeader}>Partner Preferences</Text>
 
-                    <Row label="Age Range" value={profile.partnerBasicInfo.age} onFillPress={() => goToFill('partnerBasicInfo')} />
-                    <Row label="Height" value={profile.partnerBasicInfo.height} onFillPress={() => goToFill('partnerBasicInfo')} />
-                    <Row label="Marital Status" value={profile.partnerBasicInfo.maritalStatus} onFillPress={() => goToFill('partnerBasicInfo')} />
-                    <Row label="Children" value={profile.partnerBasicInfo.children} onFillPress={() => goToFill('partnerBasicInfo')} />
-                    <Row label="Religion" value={profile.partnerBasicInfo.religionCommunity} onFillPress={() => goToFill('partnerBasicInfo')} />
-                    <Row label="Community" value={profile.partnerBasicInfo.community} onFillPress={() => goToFill('partnerBasicInfo')} />
-                    <Row label="Mother Tongue" value={profile.partnerBasicInfo.motherTongue} onFillPress={() => goToFill('partnerBasicInfo')} />
-                </View>
+                        {/* SECTION 9 – Partner Basic Info */}
+                        <View style={styles.card}>
+                            <SectionHeader
+                                title="Partner Basics"
+                                icon="account-heart"
+                                onEditPress={() => goToEdit('partnerBasicInfo')}
+                            />
 
-                {/* SECTION 10 – Partner Location Details */}
-                <View style={styles.card}>
-                    <SectionHeader
-                        title="Partner Location"
-                        icon="map-marker-radius"
-                        onEditPress={() => goToEdit('partnerLocationDetails')}
-                    />
+                            <Row label="Age Range" value={profile.partnerBasicInfo.age} onFillPress={() => goToFill('partnerBasicInfo')} />
+                            <Row label="Height" value={profile.partnerBasicInfo.height} onFillPress={() => goToFill('partnerBasicInfo')} />
+                            <Row label="Marital Status" value={profile.partnerBasicInfo.maritalStatus} onFillPress={() => goToFill('partnerBasicInfo')} />
+                            <Row label="Children" value={profile.partnerBasicInfo.children} onFillPress={() => goToFill('partnerBasicInfo')} />
+                            <Row label="Religion" value={profile.partnerBasicInfo.religionCommunity} onFillPress={() => goToFill('partnerBasicInfo')} />
+                            <Row label="Community" value={profile.partnerBasicInfo.community} onFillPress={() => goToFill('partnerBasicInfo')} />
+                            <Row label="Mother Tongue" value={profile.partnerBasicInfo.motherTongue} onFillPress={() => goToFill('partnerBasicInfo')} />
+                        </View>
 
-                    <Row label="Country" value={profile.partnerLocationDetails.country} onFillPress={() => goToFill('partnerLocationDetails')} />
-                    <Row label="State" value={profile.partnerLocationDetails.state} onFillPress={() => goToFill('partnerLocationDetails')} />
-                    <Row label="City" value={profile.partnerLocationDetails.city} onFillPress={() => goToFill('partnerLocationDetails')} />
-                </View>
+                        {/* SECTION 10 – Partner Location Details */}
+                        <View style={styles.card}>
+                            <SectionHeader
+                                title="Partner Location"
+                                icon="map-marker-radius"
+                                onEditPress={() => goToEdit('partnerLocationDetails')}
+                            />
 
-                {/* SECTION 11 – Partner Education & Career */}
-                <View style={styles.card}>
-                    <SectionHeader
-                        title="Partner Career"
-                        icon="school"
-                        onEditPress={() => goToEdit('partnerEducationCareer')}
-                    />
+                            <Row label="Country" value={profile.partnerLocationDetails.country} onFillPress={() => goToFill('partnerLocationDetails')} />
+                            <Row label="State" value={profile.partnerLocationDetails.state} onFillPress={() => goToFill('partnerLocationDetails')} />
+                            <Row label="City" value={profile.partnerLocationDetails.city} onFillPress={() => goToFill('partnerLocationDetails')} />
+                        </View>
 
-                    <Row label="Qualification" value={profile.partnerEducationCareer.qualification} onFillPress={() => goToFill('partnerEducationCareer')} />
-                    <Row label="Working With" value={profile.partnerEducationCareer.workingWith} onFillPress={() => goToFill('partnerEducationCareer')} />
-                    <Row label="Profession" value={profile.partnerEducationCareer.professionArea} onFillPress={() => goToFill('partnerEducationCareer')} />
-                    <Row label="Working As" value={profile.partnerEducationCareer.workingAs} onFillPress={() => goToFill('partnerEducationCareer')} />
-                    <Row label="Income" value={profile.partnerEducationCareer.annualIncome} onFillPress={() => goToFill('partnerEducationCareer')} />
-                </View>
+                        {/* SECTION 11 – Partner Education & Career */}
+                        <View style={styles.card}>
+                            <SectionHeader
+                                title="Partner Career"
+                                icon="school"
+                                onEditPress={() => goToEdit('partnerEducationCareer')}
+                            />
 
-                {/* SECTION 12 – Partner Other Details */}
-                <View style={styles.card}>
-                    <SectionHeader
-                        title="Other Details"
-                        icon="dots-horizontal-circle"
-                        onEditPress={() => goToEdit('partnerOtherDetails')}
-                    />
+                            <Row label="Qualification" value={profile.partnerEducationCareer.qualification} onFillPress={() => goToFill('partnerEducationCareer')} />
+                            <Row label="Working With" value={profile.partnerEducationCareer.workingWith} onFillPress={() => goToFill('partnerEducationCareer')} />
+                            <Row label="Profession" value={profile.partnerEducationCareer.professionArea} onFillPress={() => goToFill('partnerEducationCareer')} />
+                            <Row label="Working As" value={profile.partnerEducationCareer.workingAs} onFillPress={() => goToFill('partnerEducationCareer')} />
+                            <Row label="Income" value={profile.partnerEducationCareer.annualIncome} onFillPress={() => goToFill('partnerEducationCareer')} />
+                        </View>
 
-                    <Row label="Profile Managed By" value={profile.partnerOtherDetails.profileManagedBy} onFillPress={() => goToFill('partnerOtherDetails')} />
-                    <Row label="Diet" value={profile.partnerOtherDetails.diet} onFillPress={() => goToFill('partnerOtherDetails')} />
-                </View>
+                        {/* SECTION 12 – Partner Other Details */}
+                        <View style={styles.card}>
+                            <SectionHeader
+                                title="Other Details"
+                                icon="dots-horizontal-circle"
+                                onEditPress={() => goToEdit('partnerOtherDetails')}
+                            />
+
+                            <Row label="Profile Managed By" value={profile.partnerOtherDetails.profileManagedBy} onFillPress={() => goToFill('partnerOtherDetails')} />
+                            <Row label="Diet" value={profile.partnerOtherDetails.diet} onFillPress={() => goToFill('partnerOtherDetails')} />
+                        </View>
+                    </>
+                )}
 
             </ScrollView>
         </View>
@@ -636,7 +656,7 @@ const styles = StyleSheet.create({
         position: 'absolute',
         bottom: 15,
         left: 15,
-        right: 15, 
+        right: 15,
     },
     nameText: {
         color: '#FFF',

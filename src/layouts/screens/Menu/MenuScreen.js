@@ -21,7 +21,8 @@ export default function MenuScreen() {
     const [showRatePopup, setShowRatePopup] = useState(false);
     const [showDownloadPopup, setShowDownloadPopup] = useState(false);
 
-    const { userToken, userInfo, fetchCurrentUser } = useAuth();
+    const { userToken, userInfo, fetchCurrentUser, logout } = useAuth();
+    const isInvited = userInfo?.isInvitedUser === true;
 
     useFocusEffect(
         useCallback(() => {
@@ -100,12 +101,16 @@ export default function MenuScreen() {
 
                 {/* ACTION ITEMS (Edit/Download) */}
                 <View style={[styles.menuCard, { marginTop: 20 }]}>
-                    {renderMenuItem(
-                        <FontAwesome5 name="edit" size={18} color={COLORS.primary} />,
-                        "View and Edit Profile",
-                        () => navigation.navigate('UserProfileScreen')
+                    {!isInvited && (
+                        <>
+                            {renderMenuItem(
+                                <FontAwesome5 name="edit" size={18} color={COLORS.primary} />,
+                                "View and Edit Profile",
+                                () => navigation.navigate('UserProfileScreen')
+                            )}
+                            <View style={styles.separator} />
+                        </>
                     )}
-                    <View style={styles.separator} />
                     {renderMenuItem(
                         <FontAwesome5 name="download" size={18} color={COLORS.primary} />,
                         "Download Profile PDF",
@@ -114,57 +119,61 @@ export default function MenuScreen() {
                 </View>
 
                 {/* DISCOVER MATCHES */}
-                <Text style={styles.sectionTitle}>Discover</Text>
-                <View style={styles.menuCard}>
-                    {renderMenuItem(
-                        <FontAwesome5 name="user-friends" size={18} color="#4F8EF7" />,
-                        "My Matches",
-                        () => navigation.navigate('Home', {
-                            screen: 'HomeScreen',
-                            params: { tab: 'matches' }
-                        })
-                    )}
-                    <View style={styles.separator} />
-                    {renderMenuItem(
-                        <MaterialIcons name="mail-outline" size={22} color="#F7B731" />,
-                        "Inbox",
-                        () => navigation.navigate('Home', { screen: 'inbox' })
-                    )}
-                    <View style={styles.separator} />
-                    {renderMenuItem(
-                        <Ionicons name="chatbubble-ellipses-outline" size={22} color="#20BF6B" />,
-                        "Chats",
-                        () => navigation.navigate('Home', { screen: 'Message' })
-                    )}
-                </View>
+                {!isInvited && (
+                    <>
+                        <Text style={styles.sectionTitle}>Discover</Text>
+                        <View style={styles.menuCard}>
+                            {renderMenuItem(
+                                <FontAwesome5 name="user-friends" size={18} color="#4F8EF7" />,
+                                "My Matches",
+                                () => navigation.navigate('Home', {
+                                    screen: 'HomeScreen',
+                                    params: { tab: 'matches' }
+                                })
+                            )}
+                            <View style={styles.separator} />
+                            {renderMenuItem(
+                                <MaterialIcons name="mail-outline" size={22} color="#F7B731" />,
+                                "Inbox",
+                                () => navigation.navigate('Home', { screen: 'inbox' })
+                            )}
+                            <View style={styles.separator} />
+                            {renderMenuItem(
+                                <Ionicons name="chatbubble-ellipses-outline" size={22} color="#20BF6B" />,
+                                "Chats",
+                                () => navigation.navigate('Home', { screen: 'Message' })
+                            )}
+                        </View>
 
-                {/* SETTINGS */}
-                <Text style={styles.sectionTitle}>Settings & Support</Text>
-                <View style={styles.menuCard}>
-                    {renderMenuItem(
-                        <FontAwesome5 name="user-check" size={18} color="#8854d0" />,
-                        "Partner Preferences",
-                        () => navigation.navigate('PreferencesOverview', { fromMenu: true })
-                    )}
-                    <View style={styles.separator} />
-                    {renderMenuItem(
-                        <FontAwesome5 name="filter" size={18} color="#FA8231" />,
-                        "Contact Filters",
-                        () => navigation.navigate('ContactFilterScreen')
-                    )}
-                    <View style={styles.separator} />
-                    {renderMenuItem(
-                        <Ionicons name="settings-outline" size={22} color="#0FB9B1" />,
-                        "Account Settings",
-                        () => navigation.navigate('AccountSettingsScreen')
-                    )}
-                    <View style={styles.separator} />
-                    {renderMenuItem(
-                        <MaterialIcons name="security" size={22} color="#EB3B5A" />,
-                        "Safety Centre",
-                        () => navigation.navigate('SafetyCentreScreen')
-                    )}
-                </View>
+                        {/* SETTINGS */}
+                        <Text style={styles.sectionTitle}>Settings & Support</Text>
+                        <View style={styles.menuCard}>
+                            {renderMenuItem(
+                                <FontAwesome5 name="user-check" size={18} color="#8854d0" />,
+                                "Partner Preferences",
+                                () => navigation.navigate('PreferencesOverview', { fromMenu: true })
+                            )}
+                            <View style={styles.separator} />
+                            {renderMenuItem(
+                                <FontAwesome5 name="filter" size={18} color="#FA8231" />,
+                                "Contact Filters",
+                                () => navigation.navigate('ContactFilterScreen')
+                            )}
+                            <View style={styles.separator} />
+                            {renderMenuItem(
+                                <Ionicons name="settings-outline" size={22} color="#0FB9B1" />,
+                                "Account Settings",
+                                () => navigation.navigate('AccountSettingsScreen')
+                            )}
+                            <View style={styles.separator} />
+                            {renderMenuItem(
+                                <MaterialIcons name="security" size={22} color="#EB3B5A" />,
+                                "Safety Centre",
+                                () => navigation.navigate('SafetyCentreScreen')
+                            )}
+                        </View>
+                    </>
+                )}
 
                 {/* APP INFO */}
                 <Text style={styles.sectionTitle}>App Info</Text>
@@ -181,6 +190,31 @@ export default function MenuScreen() {
                         () => setShowRatePopup(true)
                     )}
                 </View>
+
+                {isInvited && (
+                    <>
+                        <Text style={styles.sectionTitle}>Account</Text>
+                        <View style={styles.menuCard}>
+                            {renderMenuItem(
+                                <MaterialIcons name="delete-outline" size={22} color="#EB3B5A" />,
+                                "Delete Profile",
+                                () => navigation.navigate('HideDeleteProfile')
+                            )}
+                            <View style={styles.separator} />
+                            {renderMenuItem(
+                                <MaterialCommunityIcons name="logout" size={22} color="#4F8EF7" />,
+                                "Log Out",
+                                async () => {
+                                    await logout();
+                                    navigation.reset({
+                                        index: 0,
+                                        routes: [{ name: 'MainLoginScreen' }],
+                                    });
+                                }
+                            )}
+                        </View>
+                    </>
+                )}
 
 
 

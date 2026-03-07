@@ -37,7 +37,8 @@ export default function ChatList({ data = [], refreshControl }) {
         name: item.name,
         image: item.image,
         online: item.online,
-        lastSeen: item.lastSeen
+        lastSeen: item.lastSeen,
+        isFamilyGroup: item.isFamilyGroup
       })}
       style={styles.card}
     >

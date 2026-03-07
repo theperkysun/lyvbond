@@ -32,6 +32,7 @@ import UserDetailsScreen from '../screens/UserDetailsScreen/UserDetailsScreen';
 import FilterScreen from '../screens/FilterScreen/FilterScreen'
 import IndexChat from '../screens/Chats/IndexChat'
 import ChatView from '../screens/Chats/ChatView'
+import FamilyGroupDetailsScreen from '../screens/Chats/FamilyGroupDetailsScreen'
 import CallHistoryScreen from '../screens/Chats/CallHistoryScreen'
 import UserProfileScreen from '../screens/ProfileScreenH/UserProfileScreen'
 import InboxIndex from '../screens/Inbox/InboxIndex';
@@ -65,6 +66,12 @@ import PhoneLogin from '../screens/PhoneLogin/PhoneLogin';
 import AudioCallScreen from '../screens/Calls/AudioCallScreen';
 import VideoCallScreen from '../screens/Calls/VideoCallScreen';
 import PaymentScreen from '../screens/Payment/PaymentScreen';
+import FamilyInviteIntermediate from '../screens/Invite family members sign up/FamilyInviteIntermediate';
+import YouAreInvitedScreen from '../screens/Invite family members sign up/YouAreInvitedScreen';
+import InviteProfileForScreen from '../screens/Invite family members sign up/InviteProfileForScreen';
+import InviteNameDobScreen from '../screens/Invite family members sign up/InviteNameDobScreen';
+import InviteEmailPhoneScreen from '../screens/Invite family members sign up/InviteEmailPhoneScreen';
+import InviteSignupOTP from '../screens/Invite family members sign up/InviteSignupOTP';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import FontAwesome6 from 'react-native-vector-icons/FontAwesome6';
 import Ionicons from 'react-native-vector-icons/Ionicons';
@@ -92,6 +99,9 @@ const ChatNavigator = () => (
 
 // create a component
 const BottomTabs = () => {
+  const { userInfo } = useAuth();
+  const isInvited = userInfo?.isInvitedUser === true;
+
   return (
     <Tab.Navigator
       screenOptions={{
@@ -117,28 +127,32 @@ const BottomTabs = () => {
         name="Profile"
         component={ProfileScreenH}
       />
-      <Tab.Screen
-        options={{
-          tabBarIcon: ({ color, size }) => (
-            <FontAwesome6
-              name="heart-circle-check"
-              color={color}
-              size={size ?? 28}
-            />
-          ),
-        }}
-        name="HomeScreen"
-        component={HomeScreen}
-      />
-      <Tab.Screen
-        options={{
-          tabBarIcon: ({ color, size }) => (
-            <MaterialIcons name="mail" color={color} size={size ?? 28} />
-          ),
-        }}
-        name="inbox"
-        component={InboxNavigator}
-      />
+      {!isInvited && (
+        <Tab.Screen
+          options={{
+            tabBarIcon: ({ color, size }) => (
+              <FontAwesome6
+                name="heart-circle-check"
+                color={color}
+                size={size ?? 28}
+              />
+            ),
+          }}
+          name="HomeScreen"
+          component={HomeScreen}
+        />
+      )}
+      {!isInvited && (
+        <Tab.Screen
+          options={{
+            tabBarIcon: ({ color, size }) => (
+              <MaterialIcons name="mail" color={color} size={size ?? 28} />
+            ),
+          }}
+          name="inbox"
+          component={InboxNavigator}
+        />
+      )}
       <Tab.Screen
         options={{
           tabBarIcon: ({ color, size }) => (
@@ -209,10 +223,17 @@ const AppNavigation = () => {
           <Stack.Screen name="UploadPhoto" component={UploadPhoto} />
           <Stack.Screen name="SearchOptionScreen" component={SearchOptionScreen} />
           <Stack.Screen name="RangeSelectionScreen" component={RangeSelectionScreen} />
+          <Stack.Screen name="FamilyInviteIntermediate" component={FamilyInviteIntermediate} />
+          <Stack.Screen name="YouAreInvitedScreen" component={YouAreInvitedScreen} />
+          <Stack.Screen name="InviteProfileForScreen" component={InviteProfileForScreen} />
+          <Stack.Screen name="InviteNameDobScreen" component={InviteNameDobScreen} />
+          <Stack.Screen name="InviteEmailPhoneScreen" component={InviteEmailPhoneScreen} />
+          <Stack.Screen name="InviteSignupOTP" component={InviteSignupOTP} />
         </>
       ) : (
         <>
           <Stack.Screen name="Home" component={BottomTabs} />
+          <Stack.Screen name="FamilyInviteIntermediate" component={FamilyInviteIntermediate} />
           <Stack.Screen name="ProfileScreenH" component={ProfileScreenH} />
           <Stack.Screen name="SubscriptionScreen" component={SubscriptionScreen} />
           <Stack.Screen name="PremiumMatchesScreen" component={PremiumMatchesScreen} />
@@ -222,6 +243,7 @@ const AppNavigation = () => {
           <Stack.Screen name="FilterScreen" component={FilterScreen} />
           <Stack.Screen name="IndexChat" component={IndexChat} />
           <Stack.Screen name="ChatView" component={ChatView} />
+          <Stack.Screen name="FamilyGroupDetailsScreen" component={FamilyGroupDetailsScreen} />
           <Stack.Screen name="CallHistoryScreen" component={CallHistoryScreen} />
           <Stack.Screen name="UserProfileScreen" component={UserProfileScreen} />
           <Stack.Screen name="InboxIndex" component={InboxIndex} />

@@ -83,14 +83,24 @@ export default function NotificationScreen({ navigation }) {
         }
       });
     }
-    else if (type === "CHAT_MESSAGE" || type === "MESSAGE") {
-      // 2. Chat Message -> Redirect to specific ChatView (Root Stack screen, hides bottom bar)
-      if (data.userId || data.conversationId) {
+    else if (
+      type === "CHAT_MESSAGE" ||
+      type === "MESSAGE" ||
+      type === "MEET_REQUEST" ||
+      type === "MEET_RESPONSE" ||
+      type === "GHOSTING_ALERT" ||
+      type === "CALL_INCOMING"
+    ) {
+      // 2. Chat Message / Meet Requests / Ghosting -> Redirect to specific ChatView (Root Stack screen, hides bottom bar)
+      const targetUserId = data.callerId || data.userId || data.senderId || data.responderId || data.otherUserId;
+      if (targetUserId || data.conversationId) {
         navigation.navigate("ChatView", {
           chatId: data.conversationId,
-          userId: data.senderId || data.userId,
-          name: data.name || data.senderName || "Chat",
-          image: data.profileImage || item.images?.[0]
+          userId: targetUserId,
+          name: data.callerName || data.name || data.senderName || data.otherUserName || "Chat",
+          image: data.profileImage || data.otherUserImage || item.images?.[0],
+          otherUserGender: data.otherUserGender,
+          isGhostingAlert: type === "GHOSTING_ALERT"
         });
       } else {
         navigation.navigate("Home", { screen: "Message" }); // Fallback to Chat List Tab

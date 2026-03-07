@@ -115,10 +115,10 @@ const ChatService = {
         }
     },
 
-    sendMeetRequest: async (receiverId, location) => {
+    sendMeetRequest: async (receiverId, location, slot1, slot2) => {
         try {
             const config = await getAuthHeader();
-            const response = await axios.post(`${BASE_URL}/connection-progress/meet-request`, { receiverId, location }, config);
+            const response = await axios.post(`${BASE_URL}/connection-progress/meet-request`, { receiverId, location, slot1, slot2 }, config);
             return response.data;
         } catch (error) {
             console.error("sendMeetRequest error:", error);
@@ -126,13 +126,24 @@ const ChatService = {
         }
     },
 
-    respondToMeetRequest: async (meetId, status) => {
+    respondToMeetRequest: async (meetId, status, selectedSlot) => {
         try {
             const config = await getAuthHeader();
-            const response = await axios.patch(`${BASE_URL}/connection-progress/meet-request/${meetId}`, { status }, config);
+            const response = await axios.patch(`${BASE_URL}/connection-progress/meet-request/${meetId}`, { status, selectedSlot }, config);
             return response.data;
         } catch (error) {
             console.error("respondToMeetRequest error:", error);
+            throw error;
+        }
+    },
+
+    resolveMeetOutcome: async (meetId, action) => {
+        try {
+            const config = await getAuthHeader();
+            const response = await axios.post(`${BASE_URL}/connection-progress/meet-request/${meetId}/resolve`, { action }, config);
+            return response.data;
+        } catch (error) {
+            console.error("resolveMeetOutcome error:", error);
             throw error;
         }
     },
@@ -157,6 +168,50 @@ const ChatService = {
             return response.data; // { url: ... }
         } catch (error) {
             console.error("uploadChatImage error:", error);
+            throw error;
+        }
+    },
+
+    createFamilyGroup: async (receiverId) => {
+        try {
+            const config = await getAuthHeader();
+            const response = await axios.post(`${BASE_URL}/chat/create-family-group`, { receiverId }, config);
+            return response.data;
+        } catch (error) {
+            console.error("createFamilyGroup error:", error);
+            throw error;
+        }
+    },
+
+    joinFamilyGroup: async (conversationId) => {
+        try {
+            const config = await getAuthHeader();
+            const response = await axios.post(`${BASE_URL}/chat/join-family-group`, { conversationId }, config);
+            return response.data;
+        } catch (error) {
+            console.error("joinFamilyGroup error:", error);
+            throw error;
+        }
+    },
+
+    getFamilyGroupInfo: async (conversationId) => {
+        try {
+            const config = await getAuthHeader();
+            const response = await axios.get(`${BASE_URL}/chat/info/${conversationId}`, config);
+            return response.data;
+        } catch (error) {
+            console.error("getFamilyGroupInfo error:", error);
+            throw error;
+        }
+    },
+
+    removeUserFromGroup: async (conversationId, targetUserId) => {
+        try {
+            const config = await getAuthHeader();
+            const response = await axios.post(`${BASE_URL}/chat/remove-user`, { conversationId, targetUserId }, config);
+            return response.data;
+        } catch (error) {
+            console.error("removeUserFromGroup error:", error);
             throw error;
         }
     }

@@ -63,7 +63,7 @@ const NotificationController = () => {
                 image: imageSource,
             });
         } else if (data.type === 'GHOSTING_ALERT') {
-            const { conversationId, otherUserId, otherUserName, otherUserImage } = data;
+            const { conversationId, otherUserId, otherUserName, otherUserImage, otherUserGender } = data;
             const imageSource = otherUserImage ? { uri: otherUserImage } : null;
 
             navigation.navigate('ChatView', {
@@ -71,6 +71,7 @@ const NotificationController = () => {
                 userId: otherUserId,
                 name: otherUserName,
                 image: imageSource,
+                otherUserGender: otherUserGender,
                 isGhostingAlert: true
             });
         }

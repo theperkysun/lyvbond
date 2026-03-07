@@ -18,7 +18,8 @@ import {
   Easing,
   LayoutAnimation,
   UIManager,
-  Linking
+  Linking,
+  Share
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Ionicons from "react-native-vector-icons/Ionicons";
@@ -33,13 +34,14 @@ import ImageView from "react-native-image-viewing";
 import { useAuth } from "../../../context/AuthContext";
 import ChatService from "../../../services/ChatService";
 import SocketService from "../../../services/SocketService";
+import DateTimePicker from '@react-native-community/datetimepicker';
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
 }
 
 export default function ChatView({ route, navigation }) {
-  const { chatId, userId, name, image, online, lastSeen } = route.params || {};
+  const { chatId, userId, name, image, online, lastSeen, isFamilyGroup, isInvite } = route.params || {};
   const { userInfo } = useAuth(); // Get current user
 
   const [chat, setChat] = useState({
@@ -49,6 +51,7 @@ export default function ChatView({ route, navigation }) {
     image: image || null,
     online: online || false,
     lastSeen: lastSeen || null,
+    isFamilyGroup: isFamilyGroup || false,
     messages: []
   });
 
@@ -61,9 +64,10 @@ export default function ChatView({ route, navigation }) {
       name: name || prev.name,
       image: image || prev.image,
       online: online !== undefined ? online : prev.online,
-      lastSeen: lastSeen || prev.lastSeen
+      lastSeen: lastSeen || prev.lastSeen,
+      isFamilyGroup: isFamilyGroup !== undefined ? isFamilyGroup : prev.isFamilyGroup
     }));
-  }, [chatId, userId, name]);
+  }, [chatId, userId, name, isFamilyGroup]);
 
   const [messages, setMessages] = useState([]); // Separate state for flexibility
   const [blockStatus, setBlockStatus] = useState({ blockedByMe: false, blockedByOther: false });
@@ -81,13 +85,47 @@ export default function ChatView({ route, navigation }) {
   const [currentStageIndex, setCurrentStageIndex] = useState(0); // Loaded dynamically from backend
   const [discussionModalVisible, setDiscussionModalVisible] = useState(false);
   const [genericModalVisible, setGenericModalVisible] = useState(false);
+  const [familyModalVisible, setFamilyModalVisible] = useState(false);
   const [genericModalData, setGenericModalData] = useState({ title: "", desc: "" });
+
+  useEffect(() => {
+    if (isInvite && chatId && userInfo?._id) {
+      const joinGroup = async () => {
+        try {
+          // This endpoint should handle adding the current user to the chat
+          await ChatService.joinFamilyGroup(chatId);
+          // Auto-mark chat as family group if invited via deep link
+          // Also fetch info to get the group name correctly
+          const infoRes = await ChatService.getFamilyGroupInfo(chatId);
+          if (infoRes && infoRes.success && infoRes.conversation) {
+            setChat(prev => ({ ...prev, isFamilyGroup: true, name: infoRes.conversation.groupName || "Family Group Chat" }));
+          } else {
+            setChat(prev => ({ ...prev, isFamilyGroup: true }));
+          }
+        } catch (e) {
+          console.log("Could not join family group", e);
+        }
+      };
+      joinGroup();
+    }
+  }, [isInvite, chatId, userInfo]);
 
   // In Person Meet States
   const [meetModalVisible, setMeetModalVisible] = useState(false);
   const [meetLocations, setMeetLocations] = useState([]);
   const [meetRequestState, setMeetRequestState] = useState(null);
   const [meetLoading, setMeetLoading] = useState(false);
+
+  // Slots Picker State
+  const [meetStep, setMeetStep] = useState(1);
+  const [meetFailed, setMeetFailed] = useState(false);
+  const [selectedLocation, setSelectedLocation] = useState(null);
+  const [slot1, setSlot1] = useState(new Date(Date.now() + 5 * 60 * 60 * 1000));
+  const [slot2, setSlot2] = useState(new Date(Date.now() + 5 * 60 * 60 * 1000));
+  const [showPicker1, setShowPicker1] = useState(false);
+  const [showPicker2, setShowPicker2] = useState(false);
+  const [pickerMode1, setPickerMode1] = useState('date');
+  const [pickerMode2, setPickerMode2] = useState('date');
   // Ghosting Alert State
   const [ghostModalVisible, setGhostModalVisible] = useState(route.params?.isGhostingAlert || false);
 
@@ -117,8 +155,8 @@ export default function ChatView({ route, navigation }) {
   const stages = [
     { title: "Shortlist", status: currentStageIndex > 0 ? "completed" : (currentStageIndex === 0 ? "in-progress" : "incomplete") },
     { title: "Two calls", status: currentStageIndex > 1 ? "completed" : (currentStageIndex === 1 ? "in-progress" : "incomplete") },
-    { title: "In person meet", status: currentStageIndex > 2 ? "completed" : (currentStageIndex === 2 ? "in-progress" : "incomplete") },
-    { title: "Family", status: currentStageIndex > 3 ? "completed" : (currentStageIndex === 3 ? "in-progress" : "incomplete") },
+    { title: "In person meet", status: currentStageIndex > 2 ? "completed" : (meetFailed ? "failed" : (currentStageIndex === 2 ? "in-progress" : "incomplete")) },
+    { title: "Family Involvement", status: currentStageIndex > 3 ? "completed" : (currentStageIndex === 3 ? "in-progress" : "incomplete") },
     { title: "Discussion", status: currentStageIndex > 4 ? "completed" : (currentStageIndex === 4 ? "in-progress" : "incomplete") },
   ];
 
@@ -128,14 +166,29 @@ export default function ChatView({ route, navigation }) {
       return;
     }
 
-    if (index === 2) {
+    if (index === 2 && !meetFailed) {
       setMeetModalVisible(true);
       fetchMeetData();
     } else if (index === 3) {
-      setGenericModalData({ title: "Family Involvement", desc: "It's time to involve the family! Coordinating functionality will be implemented soon." });
-      setGenericModalVisible(true);
+      setFamilyModalVisible(true);
     } else if (index === 4) {
       setDiscussionModalVisible(true);
+    }
+  };
+
+  const handleInviteFamily = async () => {
+    try {
+      const res = await ChatService.createFamilyGroup(chat.otherUserId);
+      if (res && res.conversationId) {
+        const link = `https://lyvbond.com/family-chat/${res.conversationId}/${userInfo?._id}`;
+        await Share.share({
+          message: `Join our family group chat on LyvBond! Click here: ${link}`,
+        });
+        setFamilyModalVisible(false);
+      }
+    } catch (e) {
+      console.error(e);
+      Alert.alert("Error", "Could not create family invitation link");
     }
   };
 
@@ -169,54 +222,98 @@ export default function ChatView({ route, navigation }) {
     }
   };
 
-  const sendMeetRequest = async (location) => {
-    if (!chat.otherUserId) return;
+  const openSlotPicker = (location) => {
+    setSelectedLocation(location);
+    setMeetStep(2);
+  };
+
+  const sendMeetRequest = async () => {
+    if (!chat.otherUserId || !selectedLocation) return;
+
+    // VALIDATION: Check if times are at least 5 hours from now
+    const minWaitTime = Date.now() + (4.9 * 60 * 60 * 1000); // 4.9 hours to account for selection slowness
+    if (new Date(slot1).getTime() < minWaitTime || new Date(slot2).getTime() < minWaitTime) {
+      Alert.alert("Invalid Time", "Please select times that are at least 5 hours from now.");
+      return;
+    }
+
     try {
+      setMeetLoading(true);
       const res = await ChatService.sendMeetRequest(chat.otherUserId, {
-        name: location.name,
-        address: location.address,
-        lat: location.lat,
-        lng: location.lng
-      });
+        name: selectedLocation.name,
+        address: selectedLocation.address,
+        lat: selectedLocation.lat,
+        lng: selectedLocation.lng
+      }, slot1, slot2);
+
       if (res.success) {
         Alert.alert("Success", "Meet request sent to " + chat.name + "!");
         setMeetRequestState(res.meetRequest);
+        setMeetStep(1); // Reset step
 
         // Emit message to chat
         SocketService.emit("message:send", {
           conversationId: chatId,
           senderId: userInfo._id,
           receiverId: chat.otherUserId,
-          text: location.name,
+          text: selectedLocation.name,
           type: 'meet_request',
-          metadata: { location: location.name }
+          metadata: { location: selectedLocation.name, slot1, slot2 }
         });
 
         // Add to local state immediately
         const tempMsg = {
           id: Date.now().toString(),
-          text: location.name,
+          text: selectedLocation.name,
           time: new Date().toISOString(),
           fromMe: true,
           type: 'meet_request',
-          metadata: { location: location.name }
+          metadata: { location: selectedLocation.name, slot1, slot2 }
         };
         setMessages(prev => [tempMsg, ...prev]);
       }
     } catch (error) {
       Alert.alert("Error", "Could not send meet request.");
+    } finally {
+      setMeetLoading(false);
     }
   };
 
-  const handleMeetResponse = async (status) => {
+  const handleMeetResponse = async (status, selectedSlot = null) => {
     if (!meetRequestState) return;
     try {
-      const res = await ChatService.respondToMeetRequest(meetRequestState._id, status);
+      const res = await ChatService.respondToMeetRequest(meetRequestState._id, status, selectedSlot);
       if (res.success) {
         setMeetRequestState(res.meetRequest);
         if (status === 'accepted') {
-          // Immediately refresh UI index if possible, it will automatically bump up 
+          // Immediately refresh UI index if possible, it will automatically bump up
           setCurrentStageIndex(3);
+
+          // Emit congratulatory message to chat
+          const textMsg = `Congratulations! ${userInfo?.name || 'Your match'} accepted your in-person meet request at ${meetRequestState.location.name}.`;
+          SocketService.emit("message:send", {
+            conversationId: chatId,
+            senderId: userInfo._id,
+            receiverId: chat.otherUserId,
+            text: textMsg,
+            type: 'meet_accepted',
+            metadata: {
+              location: meetRequestState.location.name,
+              time: selectedSlot
+            }
+          });
+          const tempMsg = {
+            id: Date.now().toString(),
+            text: textMsg,
+            time: new Date().toISOString(),
+            fromMe: true,
+            type: 'meet_accepted',
+            metadata: {
+              location: meetRequestState.location.name,
+              time: selectedSlot
+            }
+          };
+          setMessages(prev => [tempMsg, ...prev]);
         } else {
           // Rejected - clear state, refetch locations
           setMeetRequestState(null);
@@ -225,6 +322,29 @@ export default function ChatView({ route, navigation }) {
       }
     } catch (e) {
       Alert.alert("Error", "Failed to respond.");
+    }
+  };
+
+  const handleMeetFeedback = async (action) => {
+    if (!meetRequestState) return;
+    try {
+      const res = await ChatService.resolveMeetOutcome(meetRequestState._id, action);
+      if (res.success) {
+        if (action === 'reschedule') {
+          setMeetRequestState(null);
+          setMeetStep(1);
+          await fetchMeetData(); // This should now load locations because request is deleted
+        } else if (action === 'completed') {
+          setMeetModalVisible(false);
+          setCurrentStageIndex(3);
+          setMeetRequestState(res.meetRequest);
+        } else if (action === 'failed') {
+          setMeetModalVisible(false);
+          setMeetFailed(true);
+        }
+      }
+    } catch (e) {
+      Alert.alert("Error", "Failed to update meet status.");
     }
   };
 
@@ -254,42 +374,37 @@ export default function ChatView({ route, navigation }) {
     setGhostModalVisible(false);
 
     if (type === 'unmatch') {
-      const msgText = `${userInfo?.name || 'I am'} is not interested in you.`;
+      // The pop up: When you confirm you have Interest on this profile and you have other options yes or no
+      Alert.alert(
+        "Confirm Unmatch",
+        "Are you sure you have other options and want to unmatch? You will no longer be able to message each other.",
+        [
+          { text: "No", style: "cancel" },
+          {
+            text: "Yes", onPress: async () => {
+              const msgText = `${userInfo?.name || 'I am'} is not interested in you.`;
 
-      SocketService.emit("message:send", {
-        conversationId: chatId,
-        senderId: userInfo?._id,
-        receiverId: chat.otherUserId,
-        text: msgText,
-        type: 'text'
-      });
+              SocketService.emit("message:send", {
+                conversationId: chatId,
+                senderId: userInfo?._id,
+                receiverId: chat.otherUserId,
+                text: msgText,
+                type: 'text'
+              });
 
-      try {
-        await ChatService.unmatchUser(chat.otherUserId);
-      } catch (e) {
-        console.error("Unmatch failed", e);
-      }
+              try {
+                await ChatService.unmatchUser(chat.otherUserId);
+              } catch (e) {
+                console.error("Unmatch failed", e);
+              }
 
-      navigation.goBack();
-    } else if (type === 'busy') {
-      const msgText = "I am busy for some reason, I'll be back in a while.";
-
-      SocketService.emit("message:send", {
-        conversationId: chatId,
-        senderId: userInfo?._id,
-        receiverId: chat.otherUserId,
-        text: msgText,
-        type: 'text'
-      });
-
-      const tempMsg = {
-        id: Date.now().toString(),
-        text: msgText,
-        time: new Date().toISOString(),
-        fromMe: true,
-        type: 'text',
-      };
-      setMessages(prev => [tempMsg, ...prev]);
+              navigation.goBack();
+            }
+          }
+        ]
+      );
+    } else if (type === 'interested') {
+      // Just close modal and return to chat screen where they can message
     }
   };
 
@@ -304,6 +419,7 @@ export default function ChatView({ route, navigation }) {
             // Apply layout animation for a smooth progress transitions dynamically
             LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
             setCurrentStageIndex(res.currentStageIndex);
+            if (res.meetFailed) setMeetFailed(true);
           }
         }
       } catch (err) {
@@ -484,7 +600,7 @@ export default function ChatView({ route, navigation }) {
 
     // B. Socket Emit
     if (userInfo && userInfo._id) {
-      const receiver = chat.otherUserId;
+      const receiver = chat.otherUserId || chat.id || chatId || 'family_group';
       if (receiver) {
         SocketService.emit("message:send", {
           conversationId: chatId,
@@ -613,7 +729,7 @@ export default function ChatView({ route, navigation }) {
           SocketService.emit("message:send", {
             conversationId: chatId,
             senderId: userInfo._id,
-            receiverId: chat.otherUserId,
+            receiverId: chat.otherUserId || chat.id || chatId || 'family_group',
             text: url,
             type: 'image'
           });
@@ -646,6 +762,14 @@ export default function ChatView({ route, navigation }) {
 
   // ---------- Header Navigation ----------
   const handleHeaderPress = () => {
+    if (chat.isFamilyGroup) {
+      navigation.navigate("FamilyGroupDetailsScreen", {
+        chatId: chat.id,
+        groupName: chat.name
+      });
+      return;
+    }
+
     // Fix: Use chat.otherUserId (the user's ID), not chat.id (conversation ID)
     const targetUserId = chat.otherUserId;
 
@@ -781,20 +905,49 @@ export default function ChatView({ route, navigation }) {
 
         {item.type === 'meet_request' ? (
           <TouchableOpacity
-            style={[{ maxWidth: '85%', padding: 12, borderRadius: 12, borderWidth: 1, flexDirection: 'row', alignItems: 'center' }, isMe ? { backgroundColor: '#e3f2fd', borderColor: '#90caf9' } : { backgroundColor: '#fff3e0', borderColor: '#ffcc80' }]}
+            style={[{ maxWidth: '85%', padding: 12, borderRadius: 12, borderWidth: 1, flexDirection: 'row', alignItems: 'flex-start' }, isMe ? { backgroundColor: '#e3f2fd', borderColor: '#90caf9' } : { backgroundColor: '#fff3e0', borderColor: '#ffcc80' }]}
             onPress={() => {
-              if (!isMe) {
-                setMeetModalVisible(true);
-                fetchMeetData();
-              }
+              setMeetModalVisible(true);
+              fetchMeetData();
             }}>
-            <Ionicons name="location" size={24} color={isMe ? "#1976d2" : "#f57c00"} />
+            <Ionicons name="location" size={24} color={isMe ? "#1976d2" : "#f57c00"} style={{ marginTop: 2 }} />
             <View style={{ marginLeft: 10, flexShrink: 1 }}>
               <Text style={{ fontSize: 13, fontFamily: FONTS.RobotoMedium, color: '#333', lineHeight: 20 }}>
                 {isMe ? 'You sent a meeting point request at ' : `${chat.name} sent you an In Person Meet location request at `}
                 <Text style={{ fontFamily: FONTS.RobotoBold }}>{item.metadata?.location || item.text}</Text>
               </Text>
-              {!isMe && <Text style={{ fontSize: 11, color: '#f57c00', marginTop: 4, fontFamily: FONTS.RobotoBold }}>Tap to view and respond</Text>}
+
+              {item.metadata?.slot1 && item.metadata?.slot2 && (
+                <View style={{ marginTop: 8, padding: 8, backgroundColor: 'rgba(255,255,255,0.5)', borderRadius: 8 }}>
+                  <Text style={{ fontSize: 12, color: '#555', fontFamily: FONTS.RobotoBold, marginBottom: 4 }}>Proposed Times:</Text>
+                  <Text style={{ fontSize: 12, color: '#333' }}>• {new Date(item.metadata.slot1).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}</Text>
+                  <Text style={{ fontSize: 12, color: '#333' }}>• {new Date(item.metadata.slot2).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}</Text>
+                </View>
+              )}
+
+              {!isMe && <Text style={{ fontSize: 11, color: '#f57c00', marginTop: 6, fontFamily: FONTS.RobotoBold }}>Tap to view and respond</Text>}
+            </View>
+          </TouchableOpacity>
+        ) : item.type === 'meet_accepted' ? (
+          <TouchableOpacity
+            style={[{ maxWidth: '85%', padding: 12, borderRadius: 12, borderWidth: 1, flexDirection: 'row', alignItems: 'flex-start' }, isMe ? { backgroundColor: '#e8f5e9', borderColor: '#4caf50' } : { backgroundColor: '#e8f5e9', borderColor: '#4caf50' }]}
+            onPress={() => {
+              setMeetModalVisible(true);
+              fetchMeetData();
+            }}>
+            <Ionicons name="checkmark-circle" size={24} color="#4caf50" style={{ marginTop: 2 }} />
+            <View style={{ marginLeft: 10, flexShrink: 1 }}>
+              <Text style={{ fontSize: 13, fontFamily: FONTS.RobotoMedium, color: '#333', lineHeight: 20 }}>
+                {isMe ? 'You accepted the meeting point request at ' : `${chat.name} accepted your In Person Meet location request at `}
+                <Text style={{ fontFamily: FONTS.RobotoBold }}>{item.metadata?.location || item.text}</Text>
+              </Text>
+
+              {item.metadata?.time && (
+                <View style={{ marginTop: 8, padding: 8, backgroundColor: 'rgba(255,255,255,0.7)', borderRadius: 8 }}>
+                  <Text style={{ fontSize: 12, color: '#4caf50', fontFamily: FONTS.RobotoBold, marginBottom: 4 }}>Meeting Scheduled:</Text>
+                  <Text style={{ fontSize: 12, color: '#333' }}>• {new Date(item.metadata.time).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}</Text>
+                </View>
+              )}
             </View>
           </TouchableOpacity>
         ) : isMe ? (
@@ -818,6 +971,22 @@ export default function ChatView({ route, navigation }) {
           </LinearGradient>
         ) : (
           <View style={[styles.bubble, styles.bubbleThem, item.isDeleted && { backgroundColor: '#e0e0e0' }]}>
+            {chat.isFamilyGroup && item.senderName && (
+              <View style={{ marginBottom: 4 }}>
+                <Text style={{ fontSize: 13, fontFamily: FONTS.RobotoBold, color: COLORS.primary }}>
+                  {item.senderName}
+                </Text>
+                {item.familyRelation ? (
+                  <Text style={{ fontSize: 11, fontFamily: FONTS.RobotoMedium, color: '#666' }}>
+                    {item.familyRelation} {item.invitedBy ? `of ${item.invitedBy}` : ''}
+                  </Text>
+                ) : (
+                  <Text style={{ fontSize: 11, fontFamily: FONTS.RobotoMedium, color: '#666' }}>
+                    Group Admin
+                  </Text>
+                )}
+              </View>
+            )}
             <Text style={[styles.msgText, item.isDeleted && { fontStyle: 'italic', color: '#777' }]}>{item.text}</Text>
             <Text style={styles.msgTime}>{formatTime(new Date(item.time))}</Text>
           </View>
@@ -837,13 +1006,17 @@ export default function ChatView({ route, navigation }) {
         </TouchableOpacity>
 
         <TouchableOpacity style={styles.headerUser} onPress={handleHeaderPress}>
-          <View style={styles.avatarWrap}>
-            <Image source={chat.image} style={styles.avatar} />
-            {chat.online && <View style={styles.onlineDotHeader} />}
-          </View>
-          <View>
-            <Text style={styles.headerName} numberOfLines={1}>{chat.name}</Text>
-            <Text style={styles.statusText} numberOfLines={1}>{statusText}</Text>
+          {!chat.isFamilyGroup && (
+            <View style={styles.avatarWrap}>
+              <Image source={chat.image} style={styles.avatar} />
+              {chat.online && <View style={styles.onlineDotHeader} />}
+            </View>
+          )}
+          <View style={{ flex: 1 }}>
+            <Text style={styles.headerName} numberOfLines={chat.isFamilyGroup ? undefined : 1}>{chat.name}</Text>
+            {!chat.isFamilyGroup && (
+              <Text style={styles.statusText} numberOfLines={1}>{statusText}</Text>
+            )}
           </View>
         </TouchableOpacity>
 
@@ -877,80 +1050,88 @@ export default function ChatView({ route, navigation }) {
       </View>
 
       {/* ---------- FLOATING PROGRESS BAR ---------- */}
-      <View style={styles.progressBarWrapperOuter}>
-        <View style={styles.progressBarWrapper}>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.progressBarScroll}
-          >
-            {stages.map((stage, index) => {
-              const isCompleted = stage.status === 'completed';
-              const isInProgress = stage.status === 'in-progress';
-              const isPending = stage.status === 'incomplete';
+      {!chat.isFamilyGroup && (
+        <View style={styles.progressBarWrapperOuter}>
+          <View style={styles.progressBarWrapper}>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.progressBarScroll}
+            >
+              {stages.map((stage, index) => {
+                const isPending = stage.status === 'incomplete';
+                const isInProgress = stage.status === 'in-progress';
+                const isCompleted = stage.status === 'completed';
+                const isFailed = stage.status === 'failed';
 
-              const textColor = isPending ? '#9e9e9e' : (isInProgress ? '#FFB300' : '#4CAF50'); // Yellow text for active
-              const circleBgColor = isPending ? '#E0E0E0' : (isInProgress ? '#FFC107' : '#4CAF50'); // Yellow circle for active
-              const circleSize = isInProgress ? 34 : 26;
+                let textColor = isPending ? '#9e9e9e' : (isInProgress ? '#FFB300' : '#4CAF50'); // Yellow text for active
+                let circleBgColor = isPending ? '#E0E0E0' : (isInProgress ? '#FFC107' : '#4CAF50'); // Yellow circle for active
+                if (isFailed) {
+                  textColor = '#F44336';
+                  circleBgColor = '#F44336';
+                }
+                const circleSize = isInProgress ? 34 : 26;
 
-              const lineIsGreen = isCompleted;
-              const lineColor = lineIsGreen ? '#4CAF50' : '#E0E0E0';
+                const lineIsGreen = isCompleted;
+                const lineColor = lineIsGreen ? '#4CAF50' : '#E0E0E0';
 
-              const showFloatingClick = isInProgress && (index === 2 || index === 3 || index === 4);
+                const showFloatingClick = isInProgress && (index === 2 || index === 3 || index === 4);
 
-              return (
-                <View key={index} style={styles.stageContainer}>
+                return (
+                  <View key={index} style={styles.stageContainer}>
 
-                  <View style={styles.trackContainer}>
-                    {index < stages.length - 1 && (
-                      <View
+                    <View style={styles.trackContainer}>
+                      {index < stages.length - 1 && (
+                        <View
+                          style={[
+                            styles.connectingLine,
+                            {
+                              backgroundColor: lineColor,
+                              width: 75,
+                              left: circleSize / 2,
+                            }
+                          ]}
+                        />
+                      )}
+                      <TouchableOpacity
+                        activeOpacity={0.8}
+                        onPress={() => handleStageClick(stage, index)}
                         style={[
-                          styles.connectingLine,
+                          styles.stageCircle,
                           {
-                            backgroundColor: lineColor,
-                            width: 75,
-                            left: circleSize / 2,
+                            width: circleSize,
+                            height: circleSize,
+                            borderRadius: circleSize / 2,
+                            backgroundColor: circleBgColor,
+                            elevation: isInProgress ? 5 : (isCompleted || isFailed ? 2 : 0),
+                            shadowColor: isInProgress ? '#FFC107' : (isFailed ? '#F44336' : '#4CAF50'),
+                            shadowOpacity: isInProgress ? 0.4 : 0,
+                            shadowRadius: 5,
+                            shadowOffset: { width: 0, height: 2 },
+                            borderWidth: isPending ? 0 : 3,
+                            borderColor: isPending ? 'transparent' : (isInProgress ? '#FFF8E1' : (isFailed ? '#ffebee' : '#E8F5E9'))
                           }
-                        ]}
-                      />
-                    )}
-                    <TouchableOpacity
-                      activeOpacity={0.8}
-                      onPress={() => handleStageClick(stage, index)}
-                      style={[
-                        styles.stageCircle,
-                        {
-                          width: circleSize,
-                          height: circleSize,
-                          borderRadius: circleSize / 2,
-                          backgroundColor: circleBgColor,
-                          elevation: isInProgress ? 5 : (isCompleted ? 2 : 0),
-                          shadowColor: isInProgress ? '#FFC107' : '#4CAF50',
-                          shadowOpacity: isInProgress ? 0.4 : 0,
-                          shadowRadius: 5,
-                          shadowOffset: { width: 0, height: 2 },
-                          borderWidth: isPending ? 0 : 3,
-                          borderColor: isPending ? 'transparent' : (isInProgress ? '#FFF8E1' : '#E8F5E9')
-                        }
-                      ]}>
-                      {isCompleted && <Ionicons name="checkmark" size={16} color="#fff" />}
-                      {isInProgress && <Ionicons name="time" size={20} color="#fff" />}
-                      {isPending && <Text style={{ fontSize: 12, color: '#9e9e9e', fontFamily: FONTS.RobotoBold }}>{index + 1}</Text>}
-                    </TouchableOpacity>
-                  </View>
+                        ]}>
+                        {isCompleted && <Ionicons name="checkmark" size={16} color="#fff" />}
+                        {isFailed && <Ionicons name="close" size={16} color="#fff" />}
+                        {isInProgress && <Ionicons name="time" size={20} color="#fff" />}
+                        {isPending && <Text style={{ fontSize: 12, color: '#9e9e9e', fontFamily: FONTS.RobotoBold }}>{index + 1}</Text>}
+                      </TouchableOpacity>
+                    </View>
 
-                  <Text style={[styles.stageNames, { color: textColor, fontWeight: isInProgress ? 'bold' : 'normal' }]}>
-                    {stage.title}
-                  </Text>
-                </View>
-              );
-            })}
-          </ScrollView>
+                    <Text style={[styles.stageNames, { color: textColor, fontWeight: isInProgress ? 'bold' : 'normal' }]}>
+                      {stage.title}
+                    </Text>
+                  </View>
+                );
+              })}
+            </ScrollView>
+          </View>
         </View>
-      </View>
+      )}
 
       {/* GLOBAL FLOATING TOOLTIP */}
-      {stages[currentStageIndex] && stages[currentStageIndex].status === 'in-progress' && (currentStageIndex === 2 || currentStageIndex === 3 || currentStageIndex === 4) && (
+      {!chat.isFamilyGroup && stages[currentStageIndex] && stages[currentStageIndex].status === 'in-progress' && (currentStageIndex === 2 || currentStageIndex === 3 || currentStageIndex === 4) && (
         <Animated.View
           style={[
             styles.globalFloatingTip,
@@ -983,23 +1164,20 @@ export default function ChatView({ route, navigation }) {
         />
 
         {/* Input / Blocked Message */}
-        {blockStatus.blockedByMe ? (
+        {blockStatus.blockedByMe || blockStatus.blockedByOther || meetFailed ? (
           <View style={{ padding: 20, alignItems: 'center', backgroundColor: '#f9f9f9' }}>
             <Text style={{ color: '#555', textAlign: 'center', marginBottom: 10, fontFamily: FONTS.RobotoRegular }}>
-              You blocked this user to continue conversation you have unblock.
+              {meetFailed ? "You can no longer chat with this user due to a failed meetup." :
+                (blockStatus.blockedByMe ? "You blocked this user to continue conversation you have unblock." : "You've been blocked by this user.")}
             </Text>
-            <TouchableOpacity
-              onPress={handleBlockAction}
-              style={{ backgroundColor: COLORS.primary, paddingHorizontal: 20, paddingVertical: 10, borderRadius: 20 }}
-            >
-              <Text style={{ color: COLORS.white, fontFamily: FONTS.RobotoMedium }}>Unblock</Text>
-            </TouchableOpacity>
-          </View>
-        ) : blockStatus.blockedByOther ? (
-          <View style={{ padding: 20, alignItems: 'center', backgroundColor: '#f9f9f9' }}>
-            <Text style={{ color: '#555', textAlign: 'center', fontStyle: 'italic', fontFamily: FONTS.RobotoRegular }}>
-              {chat.name} has blocked you.
-            </Text>
+            {blockStatus.blockedByMe && (
+              <TouchableOpacity
+                onPress={handleBlockAction}
+                style={{ backgroundColor: COLORS.primary, paddingHorizontal: 20, paddingVertical: 10, borderRadius: 20 }}
+              >
+                <Text style={{ color: COLORS.white, fontFamily: FONTS.RobotoMedium }}>Unblock</Text>
+              </TouchableOpacity>
+            )}
           </View>
         ) : (
           <View style={styles.inputContainer}>
@@ -1132,6 +1310,23 @@ export default function ChatView({ route, navigation }) {
         </Pressable>
       </Modal>
 
+      {/* ---------- FAMILY INVITE MODAL ---------- */}
+      <Modal visible={familyModalVisible} transparent animationType="fade" onRequestClose={() => setFamilyModalVisible(false)}>
+        <Pressable style={styles.overlay} onPress={() => setFamilyModalVisible(false)}>
+          <View style={styles.popupBox}>
+            <View style={styles.pIconBg}><Ionicons name="people-circle" size={40} color={COLORS.primary} /></View>
+            <Text style={styles.pTitle}>Family Involvement</Text>
+            <Text style={styles.pDesc}>Invite your family members to this conversation to take the next big step together!</Text>
+            <TouchableOpacity style={styles.pBtnOrange} onPress={handleInviteFamily}>
+              <Text style={styles.pBtnTextWhite}>Invite your family members</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={[styles.pBtnOrange, { backgroundColor: '#ccc', marginTop: 10 }]} onPress={() => setFamilyModalVisible(false)}>
+              <Text style={styles.pBtnTextWhite}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </Pressable>
+      </Modal>
+
       {/* ---------- DISCUSSION DECISION MODAL ---------- */}
       <Modal visible={discussionModalVisible} transparent animationType="slide" onRequestClose={() => setDiscussionModalVisible(false)}>
         <Pressable style={styles.overlay} onPress={() => setDiscussionModalVisible(false)}>
@@ -1179,20 +1374,118 @@ export default function ChatView({ route, navigation }) {
                 </TouchableOpacity>
 
                 {meetRequestState.status === 'accepted' ? (
-                  <View style={{ padding: 15, backgroundColor: '#E8F5E9', borderRadius: 10, width: '100%' }}>
-                    <Text style={{ textAlign: 'center', color: '#4CAF50', fontFamily: FONTS.RobotoBold, fontSize: 15 }}>Meetup Location Fixed!</Text>
-                  </View>
+                  new Date(meetRequestState.selectedSlot).getTime() < Date.now() ? (
+                    meetStep === 3 ? (
+                      <View style={{ width: '100%', alignItems: 'center' }}>
+                        <Text style={{ textAlign: 'center', marginBottom: 20, color: '#333', fontSize: 16, fontFamily: FONTS.RobotoBold }}>Did you guys want to Reschedule that meeting?</Text>
+                        <TouchableOpacity onPress={() => handleMeetFeedback('reschedule')} style={[styles.pBtnOrange, { width: '100%', marginBottom: 15 }]}>
+                          <Text style={styles.pBtnTextWhite}>Yes, Reschedule</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity onPress={() => handleMeetFeedback('failed')} style={[styles.pBtnOrange, { backgroundColor: '#F44336', borderColor: 'transparent', width: '100%' }]}>
+                          <Text style={styles.pBtnTextWhite}>We are no longer interested</Text>
+                        </TouchableOpacity>
+                      </View>
+                    ) : (
+                      <View style={{ width: '100%', alignItems: 'center' }}>
+                        <Text style={{ textAlign: 'center', marginBottom: 20, color: '#333', fontSize: 16, fontFamily: FONTS.RobotoBold }}>Did you guys meet or not?</Text>
+                        <TouchableOpacity onPress={() => handleMeetFeedback('completed')} style={[styles.pBtnOrange, { width: '100%', marginBottom: 15, backgroundColor: '#4CAF50', borderColor: 'transparent' }]}>
+                          <Text style={styles.pBtnTextWhite}>Yes, we met!</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity onPress={() => setMeetStep(3)} style={[styles.pBtnOrange, { width: '100%', backgroundColor: '#FF9800', borderColor: 'transparent' }]}>
+                          <Text style={styles.pBtnTextWhite}>No, we didn't</Text>
+                        </TouchableOpacity>
+                      </View>
+                    )
+                  ) : (
+                    <View style={{ padding: 15, backgroundColor: '#E8F5E9', borderRadius: 10, width: '100%', alignItems: 'center' }}>
+                      <Ionicons name="checkmark-circle" size={40} color="#4CAF50" style={{ marginBottom: 10 }} />
+                      <Text style={{ textAlign: 'center', color: '#4CAF50', fontFamily: FONTS.RobotoBold, fontSize: 16, marginBottom: 5 }}>Meetup Scheduled!</Text>
+                      {meetRequestState.selectedSlot && (
+                        <Text style={{ textAlign: 'center', color: '#333', fontSize: 14 }}>
+                          {new Date(meetRequestState.selectedSlot).toLocaleString([], { dateStyle: 'full', timeStyle: 'short' })}
+                        </Text>
+                      )}
+                    </View>
+                  )
                 ) : meetRequestState.senderId === userInfo?._id ? (
                   <Text style={{ textAlign: 'center', color: '#FF9800', fontFamily: FONTS.RobotoMedium, fontSize: 15 }}>Waiting for response...</Text>
                 ) : (
-                  <View style={[styles.pBtnRow, { marginTop: 10 }]}>
-                    <TouchableOpacity onPress={() => handleMeetResponse('rejected')} style={[styles.pBtnHalf, { borderColor: '#F44336', borderWidth: 1 }]}>
-                      <Text style={[styles.pBtnTextOrange, { color: '#F44336' }]}>Reject</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity onPress={() => handleMeetResponse('accepted')} style={[styles.pBtnHalf, { backgroundColor: '#4CAF50' }]}>
-                      <Text style={styles.pBtnTextWhite}>Accept</Text>
+                  <View style={{ width: '100%', alignItems: 'center', marginTop: 10 }}>
+                    <Text style={{ textAlign: 'center', marginBottom: 15, color: '#666', fontSize: 14 }}>They proposed two times. Which one works for you?</Text>
+
+                    {meetRequestState.slot1 && (
+                      <TouchableOpacity onPress={() => handleMeetResponse('accepted', meetRequestState.slot1)} style={[styles.pBtnOrange, { marginBottom: 10, width: '100%' }]}>
+                        <Text style={[styles.pBtnTextWhite, { textAlign: 'center' }]}>Accept Option 1: {new Date(meetRequestState.slot1).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}</Text>
+                      </TouchableOpacity>
+                    )}
+                    {meetRequestState.slot2 && (
+                      <TouchableOpacity onPress={() => handleMeetResponse('accepted', meetRequestState.slot2)} style={[styles.pBtnOrange, { marginBottom: 10, width: '100%' }]}>
+                        <Text style={[styles.pBtnTextWhite, { textAlign: 'center' }]}>Accept Option 2: {new Date(meetRequestState.slot2).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}</Text>
+                      </TouchableOpacity>
+                    )}
+
+                    <TouchableOpacity onPress={() => handleMeetResponse('rejected')} style={[styles.pBtnOrange, { backgroundColor: 'transparent', borderColor: '#F44336', borderWidth: 1, marginTop: 5, width: '100%' }]}>
+                      <Text style={[styles.pBtnTextOrange, { color: '#F44336', textAlign: 'center' }]}>Reject Request</Text>
                     </TouchableOpacity>
                   </View>
+                )}
+              </View>
+            ) : meetStep === 2 ? (
+              // SHOW DATETIME PICKER UI
+              <View style={{ width: '100%', flex: 1, alignItems: 'center' }}>
+                <Text style={{ textAlign: 'center', marginBottom: 20, color: '#666', fontSize: 15 }}>Select two flexible dates and times to give {chat.name} some options.</Text>
+
+                <TouchableOpacity onPress={() => { setPickerMode1('date'); setShowPicker1(true); }} style={[{ marginBottom: 15, padding: 15, borderRadius: 10, backgroundColor: '#f0f0f0', width: '100%', alignItems: 'center' }]}>
+                  <Text style={{ fontSize: 16, color: COLORS.primary, fontFamily: FONTS.RobotoBold }}>Option 1: {slot1.toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity onPress={() => { setPickerMode2('date'); setShowPicker2(true); }} style={[{ marginBottom: 25, padding: 15, borderRadius: 10, backgroundColor: '#f0f0f0', width: '100%', alignItems: 'center' }]}>
+                  <Text style={{ fontSize: 16, color: COLORS.primary, fontFamily: FONTS.RobotoBold }}>Option 2: {slot2.toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity style={[styles.pBtnOrange, { width: '100%' }]} onPress={sendMeetRequest}>
+                  <Text style={[styles.pBtnTextWhite, { textAlign: 'center' }]}>Send Request</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity style={{ padding: 15, marginTop: 10 }} onPress={() => setMeetStep(1)}>
+                  <Text style={{ color: '#999', fontFamily: FONTS.RobotoMedium }}>Go Back</Text>
+                </TouchableOpacity>
+
+                {(showPicker1 || showPicker2) && (
+                  <DateTimePicker
+                    value={showPicker1 ? slot1 : slot2}
+                    mode={showPicker1 ? pickerMode1 : pickerMode2}
+                    is24Hour={false}
+                    display="default"
+                    minimumDate={new Date(Date.now() + 5 * 60 * 60 * 1000)}
+                    onChange={(event, selectedDate) => {
+                      if (event.type === 'dismissed') {
+                        setShowPicker1(false);
+                        setShowPicker2(false);
+                        return;
+                      }
+
+                      const currentDate = selectedDate || (showPicker1 ? slot1 : slot2);
+
+                      if (showPicker1) {
+                        setSlot1(currentDate);
+                        if (pickerMode1 === 'date') {
+                          setPickerMode1('time');
+                        } else {
+                          setShowPicker1(false);
+                          setPickerMode1('date');
+                        }
+                      } else {
+                        setSlot2(currentDate);
+                        if (pickerMode2 === 'date') {
+                          setPickerMode2('time');
+                        } else {
+                          setShowPicker2(false);
+                          setPickerMode2('date');
+                        }
+                      }
+                    }}
+                  />
                 )}
               </View>
             ) : (
@@ -1214,7 +1507,7 @@ export default function ChatView({ route, navigation }) {
                         </TouchableOpacity>
                         <TouchableOpacity
                           style={{ backgroundColor: COLORS.primary, paddingHorizontal: 20, paddingVertical: 10, borderRadius: 25 }}
-                          onPress={() => sendMeetRequest(item)}>
+                          onPress={() => openSlotPicker(item)}>
                           <Text style={{ color: '#fff', fontSize: 14, fontFamily: FONTS.RobotoBold }}>Meet Here</Text>
                         </TouchableOpacity>
                       </View>
@@ -1235,26 +1528,22 @@ export default function ChatView({ route, navigation }) {
           <View style={[styles.popupBox, { paddingBottom: 20 }]}>
             <View style={[styles.pIconBg, { backgroundColor: '#ffebee' }]}><MaterialCommunityIcons name="ghost" size={40} color="#f44336" /></View>
             <Text style={styles.pTitle}>Ghosting Alert</Text>
-            <Text style={styles.pDesc}>You didn't message {chat.name} for 24 hours. Are you interested in {chat.name}?</Text>
+            <Text style={styles.pDesc}>You haven't responded to {chat.name} since 24 hours. Are you no longer interested in {(route.params?.otherUserGender || chat?.gender) === 'female' ? 'her' : 'him'}?</Text>
 
             <View style={{ width: '100%', marginTop: 20 }}>
               <TouchableOpacity style={[styles.pBtnOrange, { marginBottom: 10, width: '100%' }]} onPress={() => handleGhostResponse('interested')}>
-                <Text style={[styles.pBtnTextWhite, { textAlign: 'center' }]}>Interested</Text>
+                <Text style={[styles.pBtnTextWhite, { textAlign: 'center' }]}>Yes, interested</Text>
               </TouchableOpacity>
 
               <TouchableOpacity style={[styles.pBtnOrange, { backgroundColor: '#f44336', marginBottom: 10, width: '100%' }]} onPress={() => handleGhostResponse('unmatch')}>
-                <Text style={[styles.pBtnTextWhite, { textAlign: 'center' }]}>Not Interested</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity style={{ padding: 10, alignSelf: 'center' }} onPress={() => handleGhostResponse('busy')}>
-                <Text style={{ color: '#555', fontFamily: FONTS.RobotoMedium, fontSize: 14 }}>Busy for some reason, I'll be back in a while</Text>
+                <Text style={[styles.pBtnTextWhite, { textAlign: 'center' }]}>No, I have other options</Text>
               </TouchableOpacity>
             </View>
           </View>
         </Pressable>
       </Modal>
 
-    </SafeAreaView>
+    </SafeAreaView >
   );
 }
 
@@ -1483,7 +1772,7 @@ const styles = StyleSheet.create({
     zIndex: 2,
   },
   stageNames: {
-    fontSize: 10,
+    fontSize: 8,
     textAlign: 'center',
     fontFamily: FONTS.RobotoMedium,
     marginTop: 0,
